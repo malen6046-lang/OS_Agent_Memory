@@ -51,3 +51,30 @@ README.md
 负责人：
 
 你。
+
+## FastAPI
+
+- Repository: https://github.com/fastapi/fastapi
+- Usage: REST API framework and OpenAPI generation
+- Integration type: Runtime dependency
+- Modified source: No
+- Project location: app/main.py, app/api/
+- Maintainer: 平台与集成负责人
+
+## Pydantic
+
+- Repository: https://github.com/pydantic/pydantic
+- Usage: Contract validation and serialization
+- Integration type: Runtime dependency
+- Modified source: No
+- Project location: contracts/schemas/
+- Maintainer: 平台与集成负责人
+
+## SQLAlchemy
+
+- Repository: https://github.com/sqlalchemy/sqlalchemy
+- Usage: SQLite ORM and transaction management
+- Integration type: Runtime dependency
+- Modified source: No
+- Project location: app/models/, app/repositories/
+- Maintainer: 平台与集成负责人

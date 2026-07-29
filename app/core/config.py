@@ -6,7 +6,7 @@ import os
 import re
 from copy import deepcopy
 from pathlib import Path
-from typing import Annotated, Any, Mapping
+from typing import Annotated, Any, Literal, Mapping
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -39,12 +39,27 @@ class EmbeddingConfig(BaseModel):
 
     provider: NonEmptyString
     model_name: NonEmptyString
+    implementation: NonEmptyString | None = None
 
 
 class VectorStoreConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     provider: NonEmptyString
+    implementation: NonEmptyString | None = None
+
+
+class ServicesConfig(BaseModel):
+    """Select mock services or explicitly configured real implementations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["mock", "real"] = "mock"
+    preference_implementation: NonEmptyString | None = None
+    safety_implementation: NonEmptyString | None = None
+    forget_implementation: NonEmptyString | None = None
+    knowledge_implementation: NonEmptyString | None = None
+    retriever_implementation: NonEmptyString | None = None
 
 
 class RetrievalConfig(BaseModel):
@@ -71,6 +86,7 @@ class AppConfig(BaseModel):
     vector_store: VectorStoreConfig
     retrieval: RetrievalConfig
     logging: LoggingConfig
+    services: ServicesConfig = Field(default_factory=ServicesConfig)
 
 
 class ConfigManager:
