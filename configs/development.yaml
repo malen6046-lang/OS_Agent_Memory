@@ -1,0 +1,5 @@
+embedding:
+  provider: sentence_transformer
+
+vector_store:
+  provider: faiss

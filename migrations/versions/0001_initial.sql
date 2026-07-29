@@ -6,12 +6,8 @@ CREATE TABLE IF NOT EXISTS memory_record (
     memory_kind VARCHAR NOT NULL,
     content_text TEXT NOT NULL,
     status VARCHAR NOT NULL,
-    confidence FLOAT NOT NULL
-        CONSTRAINT ck_memory_record_confidence
-        CHECK (confidence >= 0.0 AND confidence <= 1.0),
-    revision INTEGER NOT NULL
-        CONSTRAINT ck_memory_record_revision
-        CHECK (revision >= 1),
+    confidence FLOAT NOT NULL CHECK (confidence >= 0.0 AND confidence <= 1.0),
+    revision INTEGER NOT NULL CHECK (revision >= 1),
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL
 );
