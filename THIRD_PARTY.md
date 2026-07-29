@@ -78,3 +78,16 @@ README.md
 - Modified source: No
 - Project location: app/models/, app/repositories/
 - Maintainer: 平台与集成负责人
+## sentence-transformers
+- Repository: https://github.com/UKPLab/sentence-transformers
+- Usage: Fallback embedding (BGE-small-zh-v1.5, 512-dim)
+- License: Apache-2.0
+- Location: adapters/embedding/fallback_provider.py
+- Maintainer: 算法负责人
+
+## numpy
+- Repository: https://github.com/numpy/numpy
+- Usage: Memory vector store cosine similarity
+- License: BSD-3-Clause
+- Location: adapters/vector_store/memory_vector_store.py
+- Maintainer: 算法负责人
