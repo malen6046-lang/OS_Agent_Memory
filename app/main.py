@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -9,15 +10,56 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from app.api import api_v1_router
+from app.api.dependencies import get_mock_service
+from app.core.config import ConfigManager
 from app.core.responses import error_response, new_request_id
+from app.dependencies import (
+    OrchestratorApiService,
+    build_service_container,
+    get_memory_orchestrator,
+)
 
 
 REQUEST_ID_HEADER = "X-Request-ID"
 
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Own one configured service graph for the application lifetime."""
+    config = ConfigManager().load()
+    container = build_service_container(config)
+    orchestrator = get_memory_orchestrator(container)
+    api_service = OrchestratorApiService(container, orchestrator)
+
+    await container.start()
+    application.state.config = config
+    application.state.service_container = container
+    application.state.memory_orchestrator = orchestrator
+    application.state.api_service = api_service
+    try:
+        yield
+    finally:
+        await container.close()
+
+
 app = FastAPI(
     title="OS Agent Memory System",
     version="1.0.0",
+    lifespan=lifespan,
 )
+
+
+def get_lifecycle_api_service(request: Request) -> OrchestratorApiService:
+    service = getattr(request.app.state, "api_service", None)
+    if service is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Application services are not initialized",
+        )
+    return service
+
+
+app.dependency_overrides[get_mock_service] = get_lifecycle_api_service
 
 
 def _request_id(request: Request) -> str:
