@@ -1,0 +1,23 @@
+storage:
+  data_dir: "${OS_AGENT_DATA_DIR:-./data}"
+  sqlite_file: "memory.db"
+embedding:
+  provider: "kylin"
+  model_name: "ensemble-embd_gte-base_uint8-text"
+  session_pool_size: 1
+  worker_timeout_ms: 250
+vector_store:
+  provider: "kylin"
+  app_id: "os-agent-memory"
+  db_file: "vector.db"
+  encrypt: true
+  encryption_key_env: "OS_AGENT_VECTOR_DB_KEY"
+  index_type: "FLAT"
+  metric_type: "COSINE"
+  search_timeout_ms: 100
+retrieval:
+  fusion: "rrf"
+  candidate_k: 30
+  top_k_default: 5
+security:
+  forget_confirmation_ttl_seconds: 300

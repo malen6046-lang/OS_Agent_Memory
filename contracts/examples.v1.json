@@ -1,0 +1,158 @@
+{
+  "contract_version": "1.0.0",
+  "examples": {
+    "events_ingest": {
+      "request": {
+        "events": [
+          {
+            "contract_version": "1.0.0",
+            "request_id": "req_example",
+            "idempotency_key": "idem_example",
+            "user_id": "usr_example",
+            "session_id": "ses_example",
+            "scene": "office_automation",
+            "source": "manual_config",
+            "source_event_id": "evt_example",
+            "occurred_at": "2026-07-30T10:00:00+08:00",
+            "payload": {"content": "使用表格输出"}
+          }
+        ]
+      },
+      "data": {
+        "status": "accepted",
+        "task_id": null,
+        "items": [
+          {
+            "source_event_id": "evt_example",
+            "outcome": "created",
+            "memory_ids": ["mem_example"],
+            "conflict_id": null,
+            "error": null
+          }
+        ]
+      }
+    },
+    "preferences_extract": {
+      "request": {
+        "events": [
+          {
+            "contract_version": "1.0.0",
+            "request_id": "req_example",
+            "idempotency_key": "idem_example",
+            "user_id": "usr_example",
+            "session_id": "ses_example",
+            "scene": "office_automation",
+            "source": "user_behavior",
+            "source_event_id": "evt_example",
+            "occurred_at": "2026-07-30T10:00:00+08:00",
+            "payload": {"output_format": "table"}
+          }
+        ]
+      },
+      "data": {"candidates": []}
+    },
+    "preferences_get": {
+      "query": {
+        "request_id": "req_example",
+        "user_id": "usr_example",
+        "scene": "office_automation",
+        "keys": ["output.format"]
+      },
+      "data": {"items": []}
+    },
+    "preferences_history": {
+      "path": {"key": "output.format"},
+      "query": {"request_id": "req_example", "user_id": "usr_example"},
+      "data": {"items": []}
+    },
+    "knowledge_ingest": {
+      "request": {
+        "request_id": "req_example",
+        "idempotency_key": "idem_example",
+        "user_id": "usr_example",
+        "source_event_id": "evt_example",
+        "records": [
+          {
+            "title": "终端打开方式",
+            "knowledge_type": "workflow",
+            "body": "从应用菜单打开终端",
+            "steps": ["打开应用菜单", "点击终端"],
+            "keywords": ["终端"],
+            "source_uri": null,
+            "source_reliability": 0.8,
+            "effective_at": "2026-07-30T10:00:00+08:00"
+          }
+        ]
+      }
+    },
+    "memory_search": {
+      "request": {
+        "request_id": "req_example",
+        "user_id": "usr_example",
+        "query": "如何打开终端",
+        "filters": {
+          "scene": "office_automation",
+          "memory_kinds": ["semantic"],
+          "attributes": {}
+        },
+        "top_k": 5
+      },
+      "data": {"items": []}
+    },
+    "conflict_resolve": {
+      "path": {"conflict_id": "cfl_example"},
+      "request": {
+        "request_id": "req_example",
+        "idempotency_key": "idem_example",
+        "user_id": "usr_example",
+        "source_event_id": "evt_example",
+        "decision": {
+          "relation": "replace",
+          "old_memory_id": "mem_old",
+          "new_memory_id": "mem_new",
+          "confidence": 0.9,
+          "strategy": "keep_new",
+          "reason_codes": ["newer_effective_at"]
+        }
+      }
+    },
+    "forget_preview": {
+      "request": {
+        "request_id": "req_example",
+        "user_id": "usr_example",
+        "instruction": "忘记终端相关记忆",
+        "scene": "office_automation"
+      }
+    },
+    "forget_execute": {
+      "request": {
+        "request_id": "req_example",
+        "idempotency_key": "idem_example",
+        "user_id": "usr_example",
+        "source_event_id": "evt_example",
+        "confirmation_token": "confirm_example",
+        "selected_ids": ["mem_example"]
+      }
+    },
+    "promotions_run": {
+      "request": {
+        "request_id": "req_example",
+        "idempotency_key": "idem_example",
+        "user_id": "usr_example",
+        "source_event_id": "evt_example",
+        "scene": "office_automation"
+      }
+    },
+    "health": {
+      "query": {"request_id": "req_example"}
+    },
+    "evaluations_run": {
+      "request": {
+        "request_id": "req_example",
+        "user_id": "usr_example",
+        "evaluation_types": ["retrieval", "performance"],
+        "attributes": {}
+      }
+    }
+  }
+}
