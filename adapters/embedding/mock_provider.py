@@ -1,12 +1,9 @@
-"""MockEmbeddingProvider — 测试用固定向量，可复现结果。
+"""MockEmbeddingProvider — 测试用固定向量，跨进程可复现。
 
-Implements the EmbeddingProvider protocol from V1.1:
-  start() -> ProviderHealth
-  close() -> None
-  health(deep) -> ProviderHealth
-  model_info() -> EmbeddingModelInfo
-  encode(texts) -> EmbeddingBatch
+Uses hashlib.sha256 for deterministic output across Python processes
+(unlike built-in hash() which depends on PYTHONHASHSEED).
 """
+import hashlib
 
 
 class MockEmbeddingProvider:
@@ -42,6 +39,7 @@ class MockEmbeddingProvider:
             if not text or not text.strip():
                 errors.append({"index": idx, "error": "empty_text"})
                 continue
-            vec = [hash(text) % 100 / 100.0 for _ in range(self._dim)]
+            h = hashlib.sha256(text.encode("utf-8")).digest()
+            vec = [(h[i % len(h)] / 255.0) for i in range(self._dim)]
             vectors.append(vec)
         return {"vectors": vectors, "dimension": self._dim, "model_name": "mock", "errors": errors or None}

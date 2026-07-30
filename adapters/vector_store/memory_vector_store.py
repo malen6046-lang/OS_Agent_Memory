@@ -9,18 +9,25 @@ import numpy as np
 
 class MemoryVectorStore:
     def __init__(self, dim: int = 768):
+        if dim <= 0:
+            raise ValueError(f"dimension must be positive, got {dim}")
         self._dim = dim
         self._vectors: dict[int, list[float]] = {}
         self._meta: dict[int, dict] = {}
+        self._started = False
 
     def start(self, config: dict | None = None) -> dict:
         if config:
-            self._dim = config.get("dim", config.get("dimension", self._dim))
+            d = config.get("dim") or config.get("dimension")
+            if d is not None and d > 0:
+                self._dim = d
+        self._started = True
         return {"provider": "memory", "dimension": self._dim, "status": "healthy"}
 
     def close(self) -> None:
         self._vectors.clear()
         self._meta.clear()
+        self._started = False
 
     def ensure_collection(self, spec: dict) -> None:
         if "dim" in spec:
@@ -43,6 +50,8 @@ class MemoryVectorStore:
 
     def query(self, request: dict) -> list[dict]:
         qvec = np.array(request["vector"], dtype=np.float64)
+        if qvec.size == 0 or qvec.shape[-1] != self._dim:
+            raise ValueError(f"vector dimension mismatch: expected {self._dim}, got {qvec.shape[-1] if qvec.size else 0}")
         top_k = request.get("top_k", 10)
         uid_filter = request.get("filter_user_id")
         status_filter = request.get("filter_status", "active")

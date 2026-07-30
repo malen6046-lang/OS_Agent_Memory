@@ -6,6 +6,9 @@ always runs without sentence-transformers or Kylin SDK installed.
 Usage:
     python examples/retrieval_demo.py
 """
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import time
 from adapters.vector_store.memory_vector_store import MemoryVectorStore
 from modules.knowledge_retrieval.bm25 import BM25Retriever
@@ -27,6 +30,8 @@ class DemoEmbedding:
         pass
 
     def health(self, deep: bool = False) -> dict:
+        if not self._started:
+            return {"provider": "demo", "status": "stopped", "model": "demo", "dimension": 0}
         r = {"provider": "demo", "status": "healthy", "model": "demo", "dimension": self._dim}
         if deep:
             r["deep_ms"] = 1

@@ -79,4 +79,5 @@ class BM25Retriever:
                 score += idf * (f * (self.k1 + 1)) / (f + self.k1 * (1 - self.b + self.b * dl / max(self._avgdl, 1)))
             scores[did] = score
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        return [{"doc_id": did, "score": s, "meta": dict(self._docs[did])} for did, s in ranked[:top_k]]
+        return [{"doc_id": did, "score": s, "meta": dict(self._docs[did])}
+                for did, s in ranked if s > 0][:top_k]

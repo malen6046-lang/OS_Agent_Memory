@@ -1,6 +1,6 @@
 """KnowledgeService — 知识写入、去重、冲突候选检测。"""
 from __future__ import annotations
-import time
+import uuid
 from typing import Any
 
 
@@ -48,6 +48,7 @@ class KnowledgeService:
         user_id = rec.get("user_id", "default")
         candidates = self._find_similar(text, user_id)
         threshold = 0.85
+        # Conflict detection
         for cand in candidates:
             cand_text = cand["meta"].get("content_text", "")
             score = cand["score"]
@@ -57,11 +58,50 @@ class KnowledgeService:
                 old_id = cand["meta"].get("memory_id", "")
                 old_version = cand["meta"].get("revision", 1)
                 new_version = old_version + 1
-                memory_id = f"mem_{int(time.time()*1000):x}"
+                memory_id = f"mem_{uuid.uuid4().hex[:16]}"
+                self._write_to_stores(memory_id, rec, text, user_id)
                 return {"action": "conflict", "memory_id": memory_id,
                         "old_memory_id": old_id, "new_version": new_version}
-        memory_id = f"mem_{int(time.time()*1000):x}"
+        memory_id = f"mem_{uuid.uuid4().hex[:16]}"
+        self._write_to_stores(memory_id, rec, text, user_id)
         return {"action": "inserted", "memory_id": memory_id}
+
+    def _write_to_stores(self, memory_id: str, rec: dict, text: str, user_id: str) -> None:
+        """Write to metadata store, BM25, and vector store."""
+        doc = {
+            "doc_id": memory_id,
+            "text": text,
+            "content_text": text,
+            "user_id": user_id,
+            "memory_kind": rec.get("knowledge_type", rec.get("memory_kind", "semantic")),
+            "status": rec.get("status", "active"),
+            "scene": rec.get("scene", "default"),
+        }
+        # Metadata
+        self._meta[memory_id] = doc
+        # BM25
+        if self._bm25:
+            self._bm25.index([doc])
+        # Vector store
+        if self._emb:
+            try:
+                batch = self._emb.encode([text])
+                vectors = batch.get("vectors", [])
+                if vectors:
+                    import hashlib
+                    pk = int(hashlib.md5(memory_id.encode()).hexdigest(), 16) & 0x7FFFFFFFFFFFFFFF
+                    self._vs.upsert([{
+                        "vector_pk": pk,
+                        "vector": vectors[0],
+                        "memory_id": memory_id,
+                        "user_id": user_id,
+                        "memory_kind": doc["memory_kind"],
+                        "status": doc["status"],
+                        "scene": doc["scene"],
+                        "content_text": text,
+                    }])
+            except Exception:
+                pass
 
     def _find_similar(self, text: str, user_id: str) -> list[dict]:
         try:
