@@ -2,14 +2,13 @@
 from collections import defaultdict
 import math
 
+
 def _tokenize(text: str) -> list[str]:
-    """中文: 单字 + bigram; 英文: 连续字母 >= 2 chars 为 token."""
     tokens: list[str] = []
     i = 0
     while i < len(text):
         b = text[i].encode("utf-8", errors="ignore")
         if len(b) >= 3:
-            # CJK character — emit unigram and bigram (character-level, not byte)
             tokens.append(text[i])
             if i + 1 < len(text):
                 tokens.append(text[i : i + 2])
@@ -25,6 +24,7 @@ def _tokenize(text: str) -> list[str]:
         else:
             i += 1
     return tokens
+
 
 class BM25Retriever:
     def __init__(self, k1=1.2, b=0.75):
@@ -53,13 +53,8 @@ class BM25Retriever:
         del self._docs[doc_id]
         del self._tokens[doc_id]
 
-    def search(
-        self,
-        query: str,
-        top_k: int = 10,
-        filter_user_id: str | None = None,
-        filter_status: str | None = "active",
-    ) -> list[dict]:
+    def search(self, query: str, top_k: int = 10, filter_user_id: str | None = None,
+               filter_status: str | None = "active") -> list[dict]:
         qtokens = _tokenize(query)
         if not qtokens or not self._docs:
             return []
@@ -81,14 +76,7 @@ class BM25Retriever:
                     continue
                 df = self._df.get(qt, 0)
                 idf = math.log((n - df + 0.5) / (df + 0.5) + 1.0)
-                score += (
-                    idf
-                    * (f * (self.k1 + 1))
-                    / (f + self.k1 * (1 - self.b + self.b * dl / max(self._avgdl, 1)))
-                )
+                score += idf * (f * (self.k1 + 1)) / (f + self.k1 * (1 - self.b + self.b * dl / max(self._avgdl, 1)))
             scores[did] = score
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        return [
-            {"doc_id": did, "score": s, "meta": dict(self._docs[did])}
-            for did, s in ranked[:top_k]
-        ]
+        return [{"doc_id": did, "score": s, "meta": dict(self._docs[did])} for did, s in ranked[:top_k]]

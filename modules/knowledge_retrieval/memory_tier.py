@@ -1,17 +1,5 @@
-"""MemoryTier — 三层记忆流转系统。
-
-Based on C++ dsco/memory_tier:
-  - Working  (short):  60s half-life, exponential decay
-  - Episodic (medium): 3600s half-life
-  - Semantic (long):   no decay, persistent
-
-Promotion: access_count >= 3 AND importance >= 0.5
-Decay: strength = exp(-ln(2) * age / half_life)
-Eviction: strength < threshold → deactivated
-Pinned: never decays, only explicit change allowed
-"""
+"""MemoryTier — 三层记忆流转：Working(60s)→Episodic(3600s)→Semantic(永久)。"""
 from __future__ import annotations
-
 import math
 import time
 from dataclasses import dataclass, field
@@ -19,16 +7,12 @@ from enum import IntEnum
 
 
 class MemoryTier(IntEnum):
-    WORKING = 0    # short-term
-    EPISODIC = 1   # medium-term
-    SEMANTIC = 2   # long-term
+    WORKING = 0
+    EPISODIC = 1
+    SEMANTIC = 2
 
 
-HALF_LIVES = {
-    MemoryTier.WORKING: 60.0,
-    MemoryTier.EPISODIC: 3600.0,
-    MemoryTier.SEMANTIC: 0.0,  # no decay
-}
+HALF_LIVES = {MemoryTier.WORKING: 60.0, MemoryTier.EPISODIC: 3600.0, MemoryTier.SEMANTIC: 0.0}
 
 
 @dataclass
@@ -46,8 +30,6 @@ class MemoryEntry:
 
 
 class MemoryTierStore:
-    """Manages three-tier memory with decay, consolidation, and eviction."""
-
     MAX_ENTRIES = 512
 
     def __init__(self):
@@ -57,19 +39,11 @@ class MemoryTierStore:
         self.total_promotions = 0
         self.total_evictions = 0
 
-    # ── CRUD ──────────────────────────────────────────────────
-
     def put(self, memory_id: str, value: str, tier: MemoryTier = MemoryTier.WORKING,
             importance: float = 0.3) -> str:
         if len(self._entries) >= self.MAX_ENTRIES:
             self._evict_lowest()
-
-        entry = MemoryEntry(
-            memory_id=memory_id,
-            tier=tier,
-            value=value,
-            importance=importance,
-        )
+        entry = MemoryEntry(memory_id=memory_id, tier=tier, value=value, importance=importance)
         self._entries[memory_id] = entry
         self._tier_counts[tier] += 1
         self.total_stores += 1
@@ -101,8 +75,6 @@ class MemoryTierStore:
             return True
         return False
 
-    # ── decay ─────────────────────────────────────────────────
-
     def decay_tick(self, threshold: float = 0.05) -> int:
         now = time.time()
         evicted = 0
@@ -121,16 +93,13 @@ class MemoryTierStore:
     def _calc_strength(entry: MemoryEntry, now: float) -> float:
         hl = HALF_LIVES.get(entry.tier, 0.0)
         if hl <= 0.0:
-            return 1.0  # Semantic: no decay
+            return 1.0
         age = now - entry.created_at
         if age <= 0.0:
             return 1.0
         return math.exp(-0.693147 * age / hl)
 
-    # ── consolidate ───────────────────────────────────────────
-
     def consolidate(self) -> int:
-        """Promote entries that meet criteria to the next tier."""
         now = time.time()
         promotions = 0
         for entry in self._entries.values():
@@ -147,12 +116,8 @@ class MemoryTierStore:
                 promotions += 1
         return promotions
 
-    # ── tick ──────────────────────────────────────────────────
-
     def tick(self) -> int:
         return self.decay_tick(0.05) + self.consolidate()
-
-    # ── counts ────────────────────────────────────────────────
 
     def tier_count(self, tier: MemoryTier | int) -> int:
         if isinstance(tier, int):
@@ -162,15 +127,11 @@ class MemoryTierStore:
     def active_count(self) -> int:
         return sum(1 for e in self._entries.values() if e.active)
 
-    # ── internal ──────────────────────────────────────────────
-
     def _evict_lowest(self) -> None:
-        """Remove the lowest-strength non-pinned active entry."""
-        weakest = None
-        lowest_strength = float("inf")
+        weakest, lowest = None, float("inf")
         for eid, entry in self._entries.items():
-            if entry.active and not entry.pinned and entry.strength < lowest_strength:
-                lowest_strength = entry.strength
+            if entry.active and not entry.pinned and entry.strength < lowest:
+                lowest = entry.strength
                 weakest = eid
         if weakest:
             self.remove(weakest)

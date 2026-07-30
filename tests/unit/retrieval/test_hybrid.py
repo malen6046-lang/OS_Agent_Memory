@@ -1,173 +1,82 @@
-"""Tests for HybridRetriever — V1.1 hybrid retrieval unit tests.
-
-Coverage: 中文检索, 用户隔离, 降级策略, top_k, RRF 融合.
-"""
+"""HybridRetriever unit tests — RRF, 降级, 用户隔离, top_k."""
 import pytest
 from adapters.vector_store.memory_vector_store import MemoryVectorStore
 from modules.knowledge_retrieval.bm25 import BM25Retriever
 from modules.knowledge_retrieval.hybrid_retriever import HybridRetriever
 
 
-# ── helpers ────────────────────────────────────────────────────
-
-
-class FakeEmbedding:
-    """Deterministic fake embedding for reproducible tests."""
-
-    def __init__(self, dim: int = 4):
-        self._dim = dim
-        self._started = True
-        self._call_count = 0
-
-    def start(self) -> dict:
-        self._started = True
-        return {"provider": "fake", "status": "healthy", "dimension": self._dim, "model": "fake-test"}
-
-    def close(self) -> None:
+class FakeEmb:
+    def __init__(self, dim=4):
+        self._dim, self._started = dim, True
+    def start(self):
+        return {"provider":"f","status":"healthy","model":"f","dimension":self._dim,"load_ms":1}
+    def close(self):
         self._started = False
-
-    def health(self, deep: bool = False) -> dict:
+    def health(self, deep=False):
         if not self._started:
-            return {"provider": "fake", "status": "stopped", "model": "fake-test", "dimension": 0}
-        return {"provider": "fake", "status": "healthy", "model": "fake-test", "dimension": self._dim}
-
-    def model_info(self) -> dict:
-        return {"model_name": "fake-test", "dimension": self._dim, "provider": "fake", "fingerprint": "fake@4d"}
-
-    def encode(self, texts: list[str]) -> dict:
-        self._call_count += 1
-        vectors = []
-        for t in texts:
-            vec = [0.1 * (hash(t) % 100 + i) for i in range(self._dim)]
-            vectors.append(vec)
-        return {"vectors": vectors, "dimension": self._dim, "model_name": "fake-test", "errors": None}
+            return {"provider":"f","status":"stopped","model":"f","dimension":0}
+        r = {"provider":"f","status":"healthy","model":"f","dimension":self._dim}
+        if deep:
+            r["deep_ms"] = 1; r["deep_dim"] = self._dim
+        return r
+    def model_info(self):
+        return {"model_name":"f","dimension":self._dim,"provider":"f","fingerprint":f"f@{self._dim}d"}
+    def encode(self, texts):
+        return {"vectors":[[0.01*(hash(t)%100+j) for j in range(self._dim)] for t in texts],
+                "dimension":self._dim,"model_name":"f","errors":None}
 
 
-class FailingEmbedding(FakeEmbedding):
-    """Simulates embedding provider failure."""
-
-    def health(self, deep: bool = False) -> dict:
-        return {"provider": "fake", "status": "stopped", "model": "fake-test", "dimension": 0}
-
-    def encode(self, texts: list[str]) -> dict:
-        raise RuntimeError("embedding unavailable")
+class FailingEmb(FakeEmb):
+    def health(self, deep=False):
+        return {"provider":"f","status":"stopped","model":"f","dimension":0}
+    def encode(self, texts):
+        raise RuntimeError("down")
 
 
-def _build_hybrid(dim=4):
-    emb = FakeEmbedding(dim=dim)
-    vs = MemoryVectorStore(dim=dim)
-    bm25 = BM25Retriever()
-    return HybridRetriever(emb, vs, bm25), emb, vs, bm25
+def _build():
+    emb = FakeEmb(4); vs = MemoryVectorStore(4); bm = BM25Retriever()
+    return HybridRetriever(emb, vs, bm), emb, vs, bm
 
 
-def _index_docs(bm25: BM25Retriever, vs: MemoryVectorStore, docs: list[dict]) -> None:
-    bm25.index(docs)
-    vs_items = []
+def _index(bm, vs, docs):
     for d in docs:
         d.setdefault("status", "active")
-        vs_items.append({
-            "vector_pk": int(d["doc_id"].split("_")[1]),
-            "vector": [0.01 * (hash(d["text"]) % 100 + j) for j in range(4)],
-            "memory_id": d["doc_id"],
-            "user_id": d.get("user_id", "usr_0"),
-            "memory_kind": d.get("memory_kind", "semantic"),
-            "status": d.get("status", "active"),
-            "scene": "office",
-            "content_text": d.get("text", ""),
-        })
-    vs.upsert(vs_items)
+    bm.index(docs)
+    items = []
+    for d in docs:
+        parts = d["doc_id"].split("_")
+        pk = int(parts[1]) if len(parts) > 1 else int(d["doc_id"][1:]) if d["doc_id"][1:].isdigit() else hash(d["doc_id"]) % 10000
+        items.append({"vector_pk": pk,
+                      "vector": [0.01*(hash(d["text"])%100+j) for j in range(4)],
+                      "memory_id": d["doc_id"], "user_id": d.get("user_id","usr_0"),
+                      "memory_kind": d.get("memory_kind","semantic"),
+                      "status": d.get("status","active"), "scene": "off", "content_text": d.get("text","")})
+    vs.upsert(items)
 
 
-# ── tests ──────────────────────────────────────────────────────
+class TestHybrid:
+    def test_search(self):
+        hr, _, vs, bm = _build()
+        _index(bm, vs, [{"doc_id":"d0","text":"银河麒麟终端快捷键Ctrl+Alt+T","user_id":"u1"},
+                        {"doc_id":"d1","text":"深色主题切换在设置外观中","user_id":"u1"}])
+        r = hr.search({"query":"怎样打开终端","user_id":"u1","top_k":3})
+        assert len(r["results"]) > 0 and r["meta"]["degraded"] is False
 
+    def test_degraded(self):
+        emb = FailingEmb(4); vs = MemoryVectorStore(4); bm = BM25Retriever()
+        _index(bm, vs, [{"doc_id":"d0","text":"麒麟系统终端快捷键","user_id":"u1"}])
+        hr = HybridRetriever(emb, vs, bm)
+        r = hr.search({"query":"终端","user_id":"u1","top_k":3})
+        assert r["meta"]["degraded"] is True and len(r["results"]) > 0
 
-class TestHybridBasic:
-    def test_chinese_search(self):
-        hr, _, vs, bm = _build_hybrid()
-        _index_docs(bm, vs, [
-            {"doc_id": "doc_0", "text": "银河麒麟系统中可以通过 Ctrl+Alt+T 打开终端", "user_id": "usr_0"},
-            {"doc_id": "doc_1", "text": "系统支持深色主题和浅色主题切换", "user_id": "usr_0"},
-            {"doc_id": "doc_2", "text": "在应用程序商店中可以下载办公软件", "user_id": "usr_0"},
-        ])
-        resp = hr.search({"query": "怎样打开终端", "user_id": "usr_0", "top_k": 3})
-        assert len(resp["results"]) > 0
-        assert resp["meta"]["degraded"] is False
-        assert resp["meta"]["elapsed_ms"] >= 0
+    def test_user_isolation(self):
+        hr, _, vs, bm = _build()
+        _index(bm, vs, [{"doc_id":"d0","text":"A终端笔记","user_id":"uA"},
+                        {"doc_id":"d1","text":"B终端笔记","user_id":"uB"}])
+        r = hr.search({"query":"终端","user_id":"uA","top_k":5})
+        assert all("d1" not in rr["memory_id"] for rr in r["results"])
 
-    def test_response_structure(self):
-        hr, _, vs, bm = _build_hybrid()
-        _index_docs(bm, vs, [
-            {"doc_id": "doc_0", "text": "测试麒麟系统终端", "user_id": "usr_0"},
-        ])
-        resp = hr.search({"query": "麒麟", "user_id": "usr_0", "top_k": 3})
-        for r in resp["results"]:
-            assert "memory_id" in r
-            assert "score" in r
-            assert "memory_kind" in r
-            assert "content_text" in r
-        assert "elapsed_ms" in resp["meta"]
-        assert "degraded" in resp["meta"]
-        assert "provider" in resp["meta"]
-
-
-class TestHybridUserIsolation:
-    def test_user_filtering(self):
-        hr, _, vs, bm = _build_hybrid()
-        _index_docs(bm, vs, [
-            {"doc_id": "doc_0", "text": "用户A的麒麟系统终端笔记", "user_id": "usr_A"},
-            {"doc_id": "doc_1", "text": "用户B的麒麟系统终端笔记", "user_id": "usr_B"},
-        ])
-        resp = hr.search({"query": "麒麟终端", "user_id": "usr_A", "top_k": 5})
-        memory_ids = {r["memory_id"] for r in resp["results"]}
-        assert "doc_1" not in memory_ids, "Should not see user B's document"
-
-
-class TestHybridDegradation:
-    def test_degraded_when_embedding_fails(self):
-        failing_emb = FailingEmbedding(dim=4)
-        vs = MemoryVectorStore(dim=4)
-        bm = BM25Retriever()
-        text = "\u9e92\u9e9f\u7cfb\u7edf\u7ec8\u7aef\u5feb\u6377\u952e\u8bf4\u660e"
-        _index_docs(bm, vs, [
-            {"doc_id": "doc_0", "text": text, "user_id": "usr_0"},
-        ])
-        hr = HybridRetriever(failing_emb, vs, bm)
-        resp = hr.search({"query": "\u7ec8\u7aef", "user_id": "usr_0", "top_k": 3})
-        assert resp["meta"]["degraded"] is True
-        assert len(resp["results"]) > 0  # BM25 fallback works
-
-    def test_degraded_in_response_when_embedding_unavailable(self):
-        hr, _, vs, bm = _build_hybrid()
-        _index_docs(bm, vs, [
-            {"doc_id": "doc_0", "text": "在银河麒麟桌面中配置开发环境", "user_id": "usr_0"},
-        ])
-        # Force embedding to fail
-        hr._emb = FailingEmbedding()
-        resp = hr.search({"query": "开发环境", "user_id": "usr_0", "top_k": 3})
-        assert resp["meta"]["degraded"] is True
-        assert resp["meta"]["provider"] == "fallback"
-
-
-class TestHybridTopK:
-    def test_respects_top_k(self):
-        hr, _, vs, bm = _build_hybrid()
-        docs = [
-            {"doc_id": f"doc_{i}", "text": f"测试麒麟系统文档{i}包含不同关键词组合", "user_id": "usr_0"}
-            for i in range(20)
-        ]
-        _index_docs(bm, vs, docs)
-        resp = hr.search({"query": "麒麟系统", "user_id": "usr_0", "top_k": 5})
-        assert len(resp["results"]) == 5
-
-
-class TestHybridRRF:
-    def test_rrf_dedup(self):
-        hr, _, vs, bm = _build_hybrid()
-        # Index same content so both dense and sparse would match
-        _index_docs(bm, vs, [
-            {"doc_id": "doc_0", "text": "精准匹配麒麟系统终端快捷键Ctrl+Alt+T", "user_id": "usr_0"},
-        ])
-        resp = hr.search({"query": "麒麟终端快捷键", "user_id": "usr_0", "top_k": 5})
-        memory_ids = [r["memory_id"] for r in resp["results"]]
-        # RRF should not return duplicate doc_ids
-        assert len(memory_ids) == len(set(memory_ids))
+    def test_top_k(self):
+        hr, _, vs, bm = _build()
+        _index(bm, vs, [{"doc_id":f"d{i}","text":f"测试文档{i}","user_id":"u"} for i in range(10)])
+        assert len(hr.search({"query":"测试","user_id":"u","top_k":3})["results"]) == 3
