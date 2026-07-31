@@ -38,6 +38,10 @@ class BM25Retriever:
         for d in docs:
             did = d["doc_id"]
             text = d.get("text", "") or d.get("content_text", "")
+            # Clear old DF stats if re-indexing same doc_id
+            if did in self._docs:
+                for tok in set(self._tokens.get(did, [])):
+                    self._df[tok] = max(0, self._df[tok] - 1)
             self._docs[did] = d
             self._tokens[did] = _tokenize(text)
             for tok in set(self._tokens[did]):
@@ -52,6 +56,11 @@ class BM25Retriever:
             self._df[tok] = max(0, self._df[tok] - 1)
         del self._docs[doc_id]
         del self._tokens[doc_id]
+        # Recalculate avgdl after removal
+        if self._docs:
+            self._avgdl = sum(len(t) for t in self._tokens.values()) / len(self._docs)
+        else:
+            self._avgdl = 0.0
 
     def search(self, query: str, top_k: int = 10, filter_user_id: str | None = None,
                filter_status: str | None = "active") -> list[dict]:

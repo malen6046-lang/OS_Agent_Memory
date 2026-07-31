@@ -66,17 +66,36 @@ class HybridRetriever:
             final = [{"doc_id": s["doc_id"], "memory_id": s["meta"].get("memory_id", s["doc_id"]),
                        "score": s["score"], "meta": s["meta"]} for s in sparse[:top_k]]
 
-        results = []
-        for item in final:
-            meta = item.get("meta", {})
-            results.append({
-                "memory_id": item.get("memory_id", item.get("doc_id", "")),
-                "score": item.get("score", 0.0),
+        items = []
+        for entry in final:
+            meta = entry.get("meta", {})
+            items.append({
+                "memory_id": entry.get("memory_id", entry.get("doc_id", "")),
+                "score": entry.get("score", 0.0),
                 "memory_kind": meta.get("memory_kind", "semantic"),
                 "content_text": meta.get("content_text", ""),
-                "meta": meta,
+                "metadata": meta,
             })
 
         elapsed = (time.time() - t0) * 1000
-        return {"results": results, "meta": {"elapsed_ms": round(elapsed, 1),
-                "degraded": self._degraded, "provider": "fallback"}}
+        emb_provider = "none"
+        vs_provider = "none"
+        try:
+            emb_provider = self._emb.model_info().get("model_name", "none")
+        except Exception:
+            pass
+        try:
+            vs_provider = self._vs.start({"dim": 0}).get("provider", "none") if hasattr(self._vs, "start") else "memory"
+        except Exception:
+            vs_provider = "memory"
+
+        return {
+            "items": items,
+            "meta": {
+                "elapsed_ms": round(elapsed, 1),
+                "degraded": self._degraded,
+                "embedding_provider": emb_provider if not self._degraded else "none",
+                "vector_provider": vs_provider,
+                "candidate_count": len(sparse) + len(dense),
+            },
+        }

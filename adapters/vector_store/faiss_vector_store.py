@@ -60,6 +60,7 @@ class FaissVectorStore:
                 pk = item["vector_pk"]
                 vec = np.array(item["vector"], dtype=np.float32).reshape(1, -1)
                 if self._index is not None:
+                    import faiss
                     faiss.normalize_L2(vec)
                     i = self._index.ntotal
                     self._index.add(vec)

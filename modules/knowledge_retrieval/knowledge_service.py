@@ -39,8 +39,8 @@ class KnowledgeService:
             except Exception as exc:
                 errors.append({"index": idx, "error": str(exc)})
         return {
-            "ingested": ingested, "skipped_duplicate": skipped_duplicate,
-            "conflicts": conflicts or None, "memory_ids": memory_ids or None,
+            "items": [{"status": "inserted" if m not in (conflicts or []) else "conflict",
+                       "memory_id": m} for m in (memory_ids or [])],
             "errors": errors or None,
         }
 
@@ -59,15 +59,17 @@ class KnowledgeService:
                 old_version = cand["meta"].get("revision", 1)
                 new_version = old_version + 1
                 memory_id = f"mem_{uuid.uuid4().hex[:16]}"
-                self._write_to_stores(memory_id, rec, text, user_id)
+                idx_result = self._write_to_stores(memory_id, rec, text, user_id)
                 return {"action": "conflict", "memory_id": memory_id,
-                        "old_memory_id": old_id, "new_version": new_version}
+                        "old_memory_id": old_id, "new_version": new_version,
+                        "indexed": idx_result["indexed"], "errors": idx_result["errors"]}
         memory_id = f"mem_{uuid.uuid4().hex[:16]}"
-        self._write_to_stores(memory_id, rec, text, user_id)
-        return {"action": "inserted", "memory_id": memory_id}
+        idx_result = self._write_to_stores(memory_id, rec, text, user_id)
+        return {"action": "inserted", "memory_id": memory_id,
+                "indexed": idx_result["indexed"], "errors": idx_result["errors"]}
 
-    def _write_to_stores(self, memory_id: str, rec: dict, text: str, user_id: str) -> None:
-        """Write to metadata store, BM25, and vector store."""
+    def _write_to_stores(self, memory_id: str, rec: dict, text: str, user_id: str) -> dict:
+        """Write to metadata, BM25, and vector store. Returns indexed status per store."""
         doc = {
             "doc_id": memory_id,
             "text": text,
@@ -77,11 +79,24 @@ class KnowledgeService:
             "status": rec.get("status", "active"),
             "scene": rec.get("scene", "default"),
         }
+        indexed = {"metadata": False, "bm25": False, "vector": False}
+        errors: list[str] = []
+
         # Metadata
-        self._meta[memory_id] = doc
+        try:
+            self._meta[memory_id] = doc
+            indexed["metadata"] = True
+        except Exception as e:
+            errors.append(f"metadata: {e}")
+
         # BM25
         if self._bm25:
-            self._bm25.index([doc])
+            try:
+                self._bm25.index([doc])
+                indexed["bm25"] = True
+            except Exception as e:
+                errors.append(f"bm25: {e}")
+
         # Vector store
         if self._emb:
             try:
@@ -90,7 +105,7 @@ class KnowledgeService:
                 if vectors:
                     import hashlib
                     pk = int(hashlib.md5(memory_id.encode()).hexdigest(), 16) & 0x7FFFFFFFFFFFFFFF
-                    self._vs.upsert([{
+                    result = self._vs.upsert([{
                         "vector_pk": pk,
                         "vector": vectors[0],
                         "memory_id": memory_id,
@@ -100,8 +115,14 @@ class KnowledgeService:
                         "scene": doc["scene"],
                         "content_text": text,
                     }])
-            except Exception:
-                pass
+                    if result.get("errors"):
+                        errors.append(f"vector: {result['errors']}")
+                    else:
+                        indexed["vector"] = True
+            except Exception as e:
+                errors.append(f"vector: {e}")
+
+        return {"indexed": indexed, "errors": errors or None}
 
     def _find_similar(self, text: str, user_id: str) -> list[dict]:
         try:

@@ -116,7 +116,7 @@ def main():
         status = "DEGRADED" if resp["meta"]["degraded"] else "OK"
         print(f"\n  Query: {q['query']}")
         print(f"  Status: {status} | {elapsed:.1f}ms | top_k={q['top_k']}")
-        for i, r in enumerate(resp["results"]):
+        for i, r in enumerate(resp["items"]):
             print(f"    #{i+1} [{r['memory_kind']}] score={r['score']:.4f} | {r['content_text'][:50]}...")
 
     avg_ms = total_ms / len(queries)

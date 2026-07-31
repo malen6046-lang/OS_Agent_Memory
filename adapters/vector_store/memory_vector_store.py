@@ -40,8 +40,21 @@ class MemoryVectorStore:
         errors: list[dict] = []
         for idx, item in enumerate(items):
             try:
-                pk = item["vector_pk"]
-                self._vectors[pk] = item["vector"]
+                pk = item.get("vector_pk")
+                if pk is None:
+                    raise ValueError("vector_pk required")
+                vec = item.get("vector")
+                if vec is None or len(vec) == 0:
+                    raise ValueError("vector must not be empty")
+                if len(vec) != self._dim:
+                    raise ValueError(f"dimension mismatch: expected {self._dim}, got {len(vec)}")
+                uid = item.get("user_id", "").strip()
+                if not uid:
+                    raise ValueError("user_id required")
+                st = item.get("status", "").strip()
+                if not st:
+                    raise ValueError("status required")
+                self._vectors[pk] = vec
                 self._meta[pk] = {k: v for k, v in item.items() if k != "vector"}
                 upserted += 1
             except Exception as exc:

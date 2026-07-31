@@ -38,7 +38,7 @@ class TestKS:
     def test_ingest(self):
         ks = KnowledgeService(FakeEmb(), FakeVS(), None)
         r = ks.ingest([{"title":"a","body":"b","user_id":"u","knowledge_type":"workflow"}])
-        assert r["ingested"] == 1
+        assert len(r["items"]) == 1
 
     def test_duplicate(self):
         ks = KnowledgeService(FakeEmb(), FakeVS(), None)

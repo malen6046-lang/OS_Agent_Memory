@@ -23,7 +23,7 @@ class FallbackEmbeddingProvider:
         from sentence_transformers import SentenceTransformer
         t0 = time.time()
         self._model = SentenceTransformer(self._name, device="cpu")
-        self._dim = self._model.get_sentence_embedding_dimension()
+        self._dim = self._model.get_embedding_dimension()
         return {
             "provider": "fallback", "model": self._name,
             "dimension": self._dim, "status": "healthy",

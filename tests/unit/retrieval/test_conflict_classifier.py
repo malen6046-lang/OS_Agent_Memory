@@ -24,21 +24,28 @@ class TestSixWayClassification:
         assert r["relation"] == "contradict"
         assert r["strategy"] == "manual_review"
 
-    def test_replace_newer(self):
+    def test_replace_newer_timestamp(self):
         cc = ConflictClassifier()
-        r = cc.classify("\u7ec8\u7aef\u5feb\u6377\u952e\u66f4\u65b0\u4e3aCtrl+Alt+T",
-                        {"valid_from": "2026-08-01"},
-                        [{"score": 0.90, "meta": {"memory_id": "m1",
-                         "content_text": "\u7ec8\u7aef\u5feb\u6377\u952eCtrl+Shift+T",
-                         "valid_from": "2025-01-01"}}])
-        assert r["relation"] in ("replace", "extend", "contradict")
+        r = cc.classify(
+            "\u7ec8\u7aef\u5feb\u6377\u952e\u66f4\u65b0\u4e3aCtrl+Alt+T",
+            {"valid_from": "2026-08-01"},
+            [{"score": 0.90, "meta": {"memory_id": "m1",
+             "content_text": "\u7ec8\u7aef\u5feb\u6377\u952eCtrl+Shift+T",
+             "valid_from": "2025-01-01"}}])
+        assert r["relation"] == "replace"
+        assert r["strategy"] == "keep_new"
+        assert r["conflict"] is True
 
-    def test_extend_complementary(self):
+    def test_extend_complementary_info(self):
         cc = ConflictClassifier()
-        r = cc.classify("\u7ec8\u7aef\u5feb\u6377\u952eCtrl+Alt+T\uff0c\u65b0\u7248\u4e5f\u652f\u6301Super+T", {},
-                        [{"score": 0.90, "meta": {"memory_id": "m1",
-                         "content_text": "\u7ec8\u7aef\u5feb\u6377\u952eCtrl+Alt+T"}}])
-        assert r["relation"] in ("extend", "replace", "contradict")
+        r = cc.classify(
+            "\u7ec8\u7aef\u5feb\u6377\u952eCtrl+Alt+T\uff0c\u65b0\u7248\u4e5f\u652f\u6301Super+T",
+            {},
+            [{"score": 0.90, "meta": {"memory_id": "m1",
+             "content_text": "\u7ec8\u7aef\u5feb\u6377\u952eCtrl+Alt+T"}}])
+        assert r["relation"] == "extend"
+        assert r["strategy"] == "merge"
+        assert r["conflict"] is True
 
     def test_no_similar_entries(self):
         cc = ConflictClassifier()
