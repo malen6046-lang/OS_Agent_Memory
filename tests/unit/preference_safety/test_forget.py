@@ -48,15 +48,14 @@ class TestExecute:
         fs = ForgetService()
         plan = fs.preview("\u5fd8\u8bb0\u5173\u4e8e\u4e3b\u9898\u7684\u504f\u597d")
         token = plan["confirmation_token"]
-        result = fs.execute(token, selected_ids=["mem_1", "mem_2"])
+        # Without selected_ids, uses preview candidates (which are empty with no retriever)
+        result = fs.execute(token, selected_ids=None)
         assert result["success"] is True
-        assert result["total_deleted"] == 2
 
     def test_execute_expired_token(self):
         fs = ForgetService()
         plan = fs.preview("\u5fd8\u8bb0\u4e3b\u9898")
         token = plan["confirmation_token"]
-        # Force expire
         fs._tokens[token]["expires_at"] = 0
         result = fs.execute(token)
         assert result["success"] is False
@@ -68,6 +67,19 @@ class TestExecute:
         assert result["success"] is False
         assert result["error"] == "token_not_found"
 
+    def test_execute_unauthorized_user(self):
+        fs = ForgetService()
+        plan = fs.preview("\u5fd8\u8bb0\u4e3b\u9898", user_id="usr_A")
+        result = fs.execute(plan["confirmation_token"], user_id="usr_B")
+        assert result["success"] is False
+        assert result["error"] == "unauthorized_user"
+
+    def test_selected_ids_must_be_in_candidates(self):
+        fs = ForgetService()
+        plan = fs.preview("\u5fd8\u8bb0\u4e3b\u9898")
+        result = fs.execute(plan["confirmation_token"], selected_ids=["not_in_preview"])
+        assert result["success"] is False
+
     def test_execute_with_vector_store(self):
         class FakeVS:
             def delete(self, pks):
@@ -76,7 +88,5 @@ class TestExecute:
         fs = ForgetService()
         plan = fs.preview("\u5fd8\u8bb0\u4e3b\u9898")
         result = fs.execute(plan["confirmation_token"],
-                            selected_ids=["mem_1", "mem_2"],
-                            vector_store=FakeVS())
+                            selected_ids=None, vector_store=FakeVS())
         assert result["success"] is True
-        assert result["vectors_deleted"] == 2

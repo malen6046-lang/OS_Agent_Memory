@@ -78,12 +78,33 @@ class TestE2EDuplicateWrite:
         assert len(memory_ids) == len(set(memory_ids)), "No duplicate IDs in results"
 
 
+class FailingVectorStore:
+    """Simulates vector store failure."""
+    def upsert(self, items):
+        return {"upserted": 0, "errors": [{"error": "simulated failure"}]}
+    def query(self, request):
+        return []
+    def delete(self, pks):
+        return {"deleted": 0, "errors": None}
+
+
 class TestE2EErrorRollback:
-    def test_failed_upsert_not_full_success(self):
-        emb, vs, bm, ks, _ = _build_all()
+    def test_failed_upsert_reports_degraded(self):
+        emb = MockEmbeddingProvider(dim=16)
         emb.start()
+        fvs = FailingVectorStore()
+        bm = BM25Retriever()
+        ks = KnowledgeService(emb, fvs, bm)
         r = ks.ingest([{"title": "bad item", "body": "text",
                          "user_id": "usr_0", "knowledge_type": "fact"}])
         item = r["items"][0]
-        assert item["status"] in ("inserted", "conflict")
-        assert item["memory_id"]
+        assert item["errors"] is not None
+        assert item["indexed"]["vector"] is False
+
+    def test_normal_upsert_full_success(self):
+        emb, vs, bm, ks, _ = _build_all()
+        r = ks.ingest([{"title": "good item", "body": "text",
+                         "user_id": "usr_0", "knowledge_type": "fact"}])
+        item = r["items"][0]
+        assert item["indexed"]["vector"] is True
+        assert item["errors"] is None

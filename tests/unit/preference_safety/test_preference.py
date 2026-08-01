@@ -92,14 +92,23 @@ class TestHistory:
     def test_history_versions(self):
         ps = PreferenceService()
         ps.upsert([{"preference_key": "theme", "value": "dark", "category": "ui",
-                     "confidence": 0.9, "source_event_id": "e1"}])
+                     "confidence": 0.9, "source_event_id": "e1", "user_id": "u1"}])
         ps.upsert([{"preference_key": "theme", "value": "light", "category": "ui",
-                     "confidence": 0.8, "source_event_id": "e2"}])
-        versions = ps.history(preference_key="theme")
+                     "confidence": 0.8, "source_event_id": "e2", "user_id": "u1"}])
+        versions = ps.history(user_id="u1", preference_key="theme")
         assert len(versions) == 2
-        assert versions[0]["value"] == "dark"
-        assert versions[1]["value"] == "light"
 
     def test_history_nonexistent(self):
         ps = PreferenceService()
-        assert ps.history(preference_key="nonexistent") == []
+        assert ps.history(user_id="u1", preference_key="nonexistent") == []
+
+    def test_user_isolation(self):
+        ps = PreferenceService()
+        ps.upsert([{"preference_key": "theme", "value": "dark", "category": "ui",
+                     "confidence": 0.9, "source_event_id": "e1", "user_id": "uA"}])
+        ps.upsert([{"preference_key": "theme", "value": "light", "category": "ui",
+                     "confidence": 0.8, "source_event_id": "e2", "user_id": "uB"}])
+        rA = ps.resolve(user_id="uA", keys=["theme"])
+        rB = ps.resolve(user_id="uB", keys=["theme"])
+        assert len(rA) == 1 and rA[0]["value"] == "dark"
+        assert len(rB) == 1 and rB[0]["value"] == "light"

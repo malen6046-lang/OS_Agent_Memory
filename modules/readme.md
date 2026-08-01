@@ -85,6 +85,19 @@ from adapters.embedding.fallback_provider import FallbackEmbeddingProvider
 ## 已知问题
 
 - KylinEmbeddingProvider / KylinVectorStoreAdapter 待麒麟目标机
-- 冲突分类使用字符重叠+否定词，后续可引入 NLI
 - FAISS 实验版，未进入 MVP
 - MemoryTier 纯内存，重启丢失
+
+## 评测局限性（诚实声明）
+
+- 冲突分类使用字符规则：否定词、通用反义词、时间戳优先级、
+  字符重叠门槛、槽位冲突检测（最长公共前后缀 + 中间取值不同判矛盾）。
+  在自建小样本上表现良好，但**未经独立数据集验证**；
+  真实成绩必须以大赛数据集和真模型（BGE/Kylin）实测为准。
+- 检索评测使用 Mock 向量（sha256 生成），不携带真实语义；
+  Recall@5 主要依赖 BM25 关键词匹配，不能用真实模型成绩替代。
+  真实 BGE 模型评测见 evaluation/run_real_eval.py。
+- 遗忘关键词解析为规则引擎，标准样本准确率约 80%；
+  复杂自然语言变体（"把X都忘了吧"等）覆盖有限，
+  需 LLM 或语义解析才能突破 85% 目标。
+- 当前所有指标均为开发期基线，不构成最终比赛成绩。

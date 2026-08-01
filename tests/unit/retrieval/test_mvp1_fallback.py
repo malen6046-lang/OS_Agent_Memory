@@ -12,10 +12,8 @@ import pytest
 
 @pytest.fixture(scope="module")
 def emb():
-    try:
-        from adapters.embedding.fallback_provider import FallbackEmbeddingProvider
-    except ImportError:
-        pytest.skip("sentence-transformers not installed")
+    pytest.importorskip("sentence_transformers")
+    from adapters.embedding.fallback_provider import FallbackEmbeddingProvider
     p = FallbackEmbeddingProvider()
     p.start()
     yield p
@@ -65,6 +63,7 @@ class TestMVP1Health:
 
     def test_health_stopped(self):
         """Use a standalone provider that is closed."""
+        pytest.importorskip("sentence_transformers")
         from adapters.embedding.fallback_provider import FallbackEmbeddingProvider
         e = FallbackEmbeddingProvider()
         e.start()
@@ -74,6 +73,7 @@ class TestMVP1Health:
 
 class TestMVP1ModelNotFound:
     def test_bad_model_raises(self):
+        pytest.importorskip("sentence_transformers")
         from adapters.embedding.fallback_provider import FallbackEmbeddingProvider
         bad = FallbackEmbeddingProvider(model_name="nonexistent/model-xyz-123")
         with pytest.raises(Exception):

@@ -1,0 +1,52 @@
+[
+  {
+    "text": "我喜欢深色主题",
+    "key": "theme",
+    "value": "dark"
+  },
+  {
+    "text": "请把界面设为浅色",
+    "key": "theme",
+    "value": "light"
+  },
+  {
+    "text": "平时用VS Code写代码",
+    "key": "editor",
+    "value": "vscode"
+  },
+  {
+    "text": "编辑器用vim就行",
+    "key": "editor",
+    "value": "vim"
+  },
+  {
+    "text": "开启防火墙保护安全",
+    "key": "firewall",
+    "value": "enabled"
+  },
+  {
+    "text": "要求自动锁屏",
+    "key": "auto_lock",
+    "value": "enabled"
+  },
+  {
+    "text": "启用SSH密钥认证",
+    "key": "ssh_key",
+    "value": "yes"
+  },
+  {
+    "text": "定期备份数据库",
+    "key": "auto_backup",
+    "value": "enabled"
+  },
+  {
+    "text": "别打扰我用免打扰",
+    "key": "dnd",
+    "value": "enabled"
+  },
+  {
+    "text": "用Python开发清单脚本",
+    "key": "language",
+    "value": "python"
+  }
+]

@@ -10,38 +10,31 @@ class KnowledgeService:
         self._emb = embedding_provider
         self._vs = vector_store
         self._bm25 = bm25
-        self._meta: dict[str, dict] = metadata_store or {}
+        self._meta: dict[str, dict] = metadata_store if metadata_store is not None else {}
 
     def ingest(self, records: list[dict]) -> dict:
-        ingested = 0
-        skipped_duplicate = 0
-        conflicts: list[str] = []
-        memory_ids: list[str] = []
-        errors: list[dict] = []
+        all_indexed = []
+        ingest_errors = []
         for idx, rec in enumerate(records):
             try:
                 title = rec.get("title", rec.get("content_text", ""))
                 body = rec.get("body", rec.get("content_text", ""))
                 text = (title + " " + body).strip()
                 if not text:
-                    errors.append({"index": idx, "error": "empty_text"})
+                    ingest_errors.append({"index": idx, "error": "empty_text"})
                     continue
                 result = self._ingest_one(rec, text)
-                if result["action"] == "inserted":
-                    ingested += 1
-                    memory_ids.append(result["memory_id"])
-                elif result["action"] == "duplicate":
-                    skipped_duplicate += 1
-                elif result["action"] == "conflict":
-                    ingested += 1
-                    memory_ids.append(result["memory_id"])
-                    conflicts.append(result["memory_id"])
+                all_indexed.append({
+                    "status": result["action"],
+                    "memory_id": result["memory_id"],
+                    "indexed": result.get("indexed", {}),
+                    "errors": result.get("errors"),
+                })
             except Exception as exc:
-                errors.append({"index": idx, "error": str(exc)})
+                ingest_errors.append({"index": idx, "error": str(exc)})
         return {
-            "items": [{"status": "inserted" if m not in (conflicts or []) else "conflict",
-                       "memory_id": m} for m in (memory_ids or [])],
-            "errors": errors or None,
+            "items": all_indexed,
+            "errors": ingest_errors or None,
         }
 
     def _ingest_one(self, rec: dict, text: str) -> dict:

@@ -1,0 +1,22 @@
+[
+  {
+    "instruction": "忘记关于终端快捷键的记忆",
+    "keyword": "终端快捷键"
+  },
+  {
+    "instruction": "删除主题相关设置",
+    "keyword": "主题"
+  },
+  {
+    "instruction": "忘记数据库备份的配置",
+    "keyword": "数据库备份"
+  },
+  {
+    "instruction": "删除SSH的记录",
+    "keyword": "SSH"
+  },
+  {
+    "instruction": "忘记全部记忆",
+    "keyword": "全部"
+  }
+]

@@ -27,11 +27,20 @@ class HybridRetriever:
         return ranked[:top_k]
 
     def search(self, request: dict) -> dict:
+        if hasattr(request, "model_dump"):
+            request = request.model_dump()
+        if isinstance(request, dict) and "payload" in request:
+            request = request["payload"]
         t0 = time.time()
-        query: str = request["query"]
+        query: str = request.get("query", "")
+        if not query:
+            return {"items": [], "meta": {"elapsed_ms": 0, "degraded": False,
+                     "embedding_provider": "none", "vector_provider": "none", "candidate_count": 0}}
         top_k: int = request.get("top_k", 5)
         candidate_k: int = request.get("candidate_k", 30)
         uid: str | None = request.get("user_id")
+        if not uid:
+            raise ValueError("user_id is required for search")
         self._degraded = False
 
         sparse = self._bm25.search(query, top_k=candidate_k, filter_user_id=uid, filter_status="active")
@@ -85,7 +94,7 @@ class HybridRetriever:
         except Exception:
             pass
         try:
-            vs_provider = self._vs.start({"dim": 0}).get("provider", "none") if hasattr(self._vs, "start") else "memory"
+            vs_provider = self._emb.model_info().get("model_name", "fallback") if self._degraded else "fallback"
         except Exception:
             vs_provider = "memory"
 

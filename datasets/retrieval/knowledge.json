@@ -1,0 +1,163 @@
+[
+  {
+    "doc_id": "k01",
+    "text": "Ctrl+Alt+T快捷键可以在麒麟系统中打开终端",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k02",
+    "text": "系统设置深色主题在控制面板外观选项中切换",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k03",
+    "text": "麒麟应用商店可以下载WPS浏览器和通讯工具",
+    "user_id": "u1",
+    "memory_kind": "fact",
+    "status": "active"
+  },
+  {
+    "doc_id": "k04",
+    "text": "数据库备份应在每天凌晨2点通过cron定时任务执行",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k05",
+    "text": "Python开发使用虚拟环境venv隔离项目依赖",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k06",
+    "text": "屏幕分辨率设置显示器中调整1920x1080",
+    "user_id": "u1",
+    "memory_kind": "fact",
+    "status": "active"
+  },
+  {
+    "doc_id": "k07",
+    "text": "用户喜欢表格形式展示数据不喜欢长段落",
+    "user_id": "u1",
+    "memory_kind": "preference",
+    "status": "active"
+  },
+  {
+    "doc_id": "k08",
+    "text": "Super+E快捷键快速打开文件管理器",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k09",
+    "text": "终端apt命令安装更新系统软件包",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k10",
+    "text": "旧版Ctrl+Shift+T已废弃更新为Ctrl+Alt+T",
+    "user_id": "u1",
+    "memory_kind": "fact",
+    "status": "tombstoned"
+  },
+  {
+    "doc_id": "k11",
+    "text": "防火墙默认开启通过ufw命令管理端口",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k12",
+    "text": "SSH远程连接使用密钥认证禁用密码登录",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k13",
+    "text": "多桌面切换快捷键Ctrl+Alt+方向键",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k14",
+    "text": "网络代理设置系统设置网络代理手动配置",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k15",
+    "text": "文件管理器支持列表图标分栏三种视图",
+    "user_id": "u1",
+    "memory_kind": "fact",
+    "status": "active"
+  },
+  {
+    "doc_id": "k16",
+    "text": "自动锁屏5分钟无操作后自动锁定",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k17",
+    "text": "系统日志查看使用journalctl命令",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k18",
+    "text": "定时关机shutdown命令设置定时时间",
+    "user_id": "u1",
+    "memory_kind": "workflow",
+    "status": "active"
+  },
+  {
+    "doc_id": "k19",
+    "text": "拼音输入法搜狗输入法在麒麟商店安装",
+    "user_id": "u1",
+    "memory_kind": "fact",
+    "status": "active"
+  },
+  {
+    "doc_id": "k20",
+    "text": "云备份服务支持增量备份和全量备份",
+    "user_id": "u1",
+    "memory_kind": "fact",
+    "status": "active"
+  },
+  {
+    "doc_id": "k21",
+    "text": "用户喜欢深色主题不喜欢浅色",
+    "user_id": "u2",
+    "memory_kind": "preference",
+    "status": "active"
+  },
+  {
+    "doc_id": "k22",
+    "text": "用户使用VS Code编辑器开发Python",
+    "user_id": "u2",
+    "memory_kind": "preference",
+    "status": "active"
+  },
+  {
+    "doc_id": "k23",
+    "text": "系统自动更新每周日凌晨检查更新",
+    "user_id": "u2",
+    "memory_kind": "workflow",
+    "status": "active"
+  }
+]

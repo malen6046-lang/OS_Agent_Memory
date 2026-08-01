@@ -27,7 +27,7 @@ class DemoEmbedding:
         return {"provider": "demo", "status": "healthy", "model": "demo", "dimension": self._dim, "load_ms": 1}
 
     def close(self):
-        pass
+        self._started = False
 
     def health(self, deep: bool = False) -> dict:
         if not self._started:
@@ -127,7 +127,7 @@ def main():
     print("\n--- Degradation test ---")
     emb.close()
     resp = hr.search({"query": "终端快捷键", "user_id": "usr_0", "top_k": 3})
-    print(f"  Embedding stopped, degraded={resp['meta']['degraded']}, results={len(resp['results'])}")
+    print(f"  Embedding stopped, degraded={resp['meta']['degraded']}, items={len(resp['items'])}")
 
     print("\nDone.")
 

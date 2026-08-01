@@ -136,9 +136,13 @@ def _normalize_text(text: str) -> str:
 
 class PreferenceService:
     def __init__(self):
-        self._preferences: dict[str, dict] = {}   # key -> current value
-        self._history: dict[str, list[dict]] = {}  # key -> versions
+        self._preferences: dict[tuple, dict] = {}   # (user_id, key) -> current
+        self._history: dict[tuple, list[dict]] = {}  # (user_id, key) -> versions
         self._rules = RULES
+
+    @staticmethod
+    def _pk(user_id: str, key: str) -> tuple:
+        return (user_id, key)
 
     # ── extract ───────────────────────────────────────────────
 
@@ -170,10 +174,12 @@ class PreferenceService:
     def upsert(self, candidates: list[dict]) -> list[dict]:
         records = []
         for c in candidates:
+            uid = c.get("user_id", "default")
             key = c["preference_key"]
             val = c["value"]
-            if key in self._preferences:
-                old = self._preferences[key]
+            pk = self._pk(uid, key)
+            if pk in self._preferences:
+                old = self._preferences[pk]
                 if old["value"] == val:
                     old["confidence"] = max(old["confidence"], c["confidence"])
                     old["evidence_count"] += 1
@@ -191,12 +197,13 @@ class PreferenceService:
                     "weight": c["confidence"],
                 })
                 old["evidence_count"] = len(old["evidence"])
-                self._history.setdefault(key, []).append(dict(old))
+                self._history.setdefault(pk, []).append(dict(old))
                 records.append(old)
             else:
                 rec = {
                     "preference_key": key,
                     "value": val,
+                    "user_id": uid,
                     "category": c["category"],
                     "scope": c.get("scope", "global"),
                     "scope_value": c.get("scene", c.get("scope_value", "")),
@@ -207,8 +214,8 @@ class PreferenceService:
                     "revision": 1,
                     "status": "active",
                 }
-                self._preferences[key] = rec
-                self._history.setdefault(key, []).append(dict(rec))
+                self._preferences[pk] = rec
+                self._history.setdefault(pk, []).append(dict(rec))
                 records.append(rec)
         return records
 
@@ -217,7 +224,9 @@ class PreferenceService:
     def resolve(self, user_id: str = "", scene: str = "",
                 keys: list[str] | None = None) -> list[dict]:
         results = []
-        for k, p in self._preferences.items():
+        for (uid, k), p in self._preferences.items():
+            if user_id and uid != user_id:
+                continue
             if keys and k not in keys:
                 continue
             if p["status"] == "active":
@@ -227,6 +236,7 @@ class PreferenceService:
     # ── history ───────────────────────────────────────────────
 
     def history(self, user_id: str = "", preference_key: str = "") -> list[dict]:
-        if preference_key not in self._history:
+        if not user_id or not preference_key:
             return []
-        return list(self._history[preference_key])
+        pk = self._pk(user_id, preference_key)
+        return list(self._history.get(pk, []))

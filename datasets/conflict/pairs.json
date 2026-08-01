@@ -1,0 +1,42 @@
+[
+  {
+    "new": "Ctrl+Alt+T打开终端",
+    "old": "Ctrl+Alt+T打开终端",
+    "expected": "duplicate"
+  },
+  {
+    "new": "Ctrl+Shift+T打开终端已废弃由Ctrl+Alt+T替代",
+    "old": "Ctrl+Shift+T打开终端",
+    "expected": "contradict"
+  },
+  {
+    "new": "Ctrl+Alt+T打开终端2026版",
+    "old": "Ctrl+Alt+T打开终端2025版",
+    "expected": "replace"
+  },
+  {
+    "new": "Ctrl+Alt+T打开终端新版也支持Super+T",
+    "old": "Ctrl+Alt+T打开终端",
+    "expected": "extend"
+  },
+  {
+    "new": "数据库备份cron定时任务",
+    "old": "远程连接SSH密钥",
+    "expected": "unrelated"
+  },
+  {
+    "new": "深色主题在控制面板切换",
+    "old": "浅色主题在控制面板切换",
+    "expected": "contradict"
+  },
+  {
+    "new": "用户喜欢深色主题不喜欢浅色",
+    "old": "用户喜欢浅色主题不喜欢深色",
+    "expected": "contradict"
+  },
+  {
+    "new": "Ctrl+Alt+T快捷键打开终端",
+    "old": "Ctrl+Alt+T快捷键打开终端",
+    "expected": "duplicate"
+  }
+]

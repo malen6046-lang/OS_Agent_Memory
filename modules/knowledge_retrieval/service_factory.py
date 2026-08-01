@@ -18,9 +18,8 @@ def build_knowledge_retrieval_services(config: dict | object) -> dict[str, Any]:
     instance, ensuring KnowledgeService writes and HybridRetriever reads from the
     same stores.
     """
-    embedding_config = _get_attr(config, "embedding", {})
-    vector_config = _get_attr(config, "vector_store", {})
-    retrieval_config = _get_attr(config, "retrieval", {})
+    embedding_config = config_dict(config, "embedding")
+    vector_config = config_dict(config, "vector_store")
 
     provider = embedding_config.get("provider", "memory")
     vector_provider = vector_config.get("provider", "memory")
@@ -71,7 +70,18 @@ def build_knowledge_retrieval_services(config: dict | object) -> dict[str, Any]:
     }
 
 
-def _get_attr(obj: Any, name: str, default: Any = None) -> Any:
-    if isinstance(obj, dict):
-        return obj.get(name, default)
-    return getattr(obj, name, default)
+def config_value(cfg: Any, name: str, default: Any = None) -> Any:
+    """Read a config value from dict or Pydantic model."""
+    if isinstance(cfg, dict):
+        return cfg.get(name, default)
+    return getattr(cfg, name, default) if hasattr(cfg, name) else default
+
+
+def config_dict(cfg: Any, name: str) -> dict:
+    """Read a nested config section as dict."""
+    val = config_value(cfg, name, {})
+    if isinstance(val, dict):
+        return val
+    if hasattr(val, "model_dump"):
+        return val.model_dump()
+    return {}

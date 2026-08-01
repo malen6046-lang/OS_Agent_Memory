@@ -15,7 +15,7 @@ class ForgetService:
     def __init__(self):
         self._tokens: dict[str, dict] = {}  # token -> {scope, candidates, created_at, expires_at}
 
-    def preview(self, instruction: str, retriever: Any = None, user_id: str = "") -> dict:
+    def preview(self, instruction: str, retriever: Any = None, user_id: str = "", metadata_store: dict | None = None) -> dict:
         """Parse instruction and return ForgetPlan with confirmation_token."""
         import time
 
@@ -40,12 +40,14 @@ class ForgetService:
 
         token = f"confirm_{uuid.uuid4().hex[:12]}"
         now = time.time()
+        candidate_ids = [c["memory_id"] for c in candidates]
         self._tokens[token] = {
             "scope": scope,
             "keyword": kw,
-            "candidates": [c["memory_id"] for c in candidates],
+            "user_id": user_id,
+            "candidates": candidate_ids,
             "created_at": now,
-            "expires_at": now + 300,  # 5 min TTL
+            "expires_at": now + 300,
             "instruction": instruction,
         }
 
@@ -60,7 +62,8 @@ class ForgetService:
         }
 
     def execute(self, confirmation_token: str, selected_ids: list[str] | None = None,
-                vector_store: Any = None, metadata_store: dict | None = None) -> dict:
+                user_id: str = "", vector_store: Any = None,
+                metadata_store: dict | None = None) -> dict:
         """Execute forget with confirmation token."""
         import time
 
@@ -70,8 +73,15 @@ class ForgetService:
         if time.time() > token_data["expires_at"]:
             del self._tokens[confirmation_token]
             return {"success": False, "error": "token_expired"}
+        if user_id and token_data.get("user_id") and token_data["user_id"] != user_id:
+            return {"success": False, "error": "unauthorized_user"}
 
         target_ids = selected_ids or token_data["candidates"]
+        if selected_ids:
+            allowed = set(selected_ids)
+            candidates_set = set(token_data["candidates"])
+            if not allowed.issubset(candidates_set):
+                return {"success": False, "error": "selected_ids not in preview candidates"}
         tombstoned = 0
         vectors_deleted = 0
         errors = []
@@ -102,33 +112,48 @@ class ForgetService:
             "errors": errors or None,
         }
 
+    SUFFIXES = [
+        "的配置", "的记录", "的设置", "的记忆", "的偏好",
+        "的相关", "相关数据", "相关设置", "的内容", "的资料",
+    ]
+
     def _parse_keyword(self, instruction: str) -> str:
         """Extract keyword from natural language forget instruction."""
-        # "忘记关于X的记忆" → X
+        if any(w in instruction for w in ["全部", "所有", "一切"]):
+            return "全部"
+        # "忘记关于X的记忆/偏好" → X
         p = instruction.find("忘记")
         if p >= 0:
             q = instruction.find("关于", p)
             if q >= 0:
-                r = instruction.find("的记忆", q)
-                if r >= 0:
-                    return instruction[q + 2 : r].strip()
-                r = instruction.find("的偏好", q)
-                if r >= 0:
-                    return instruction[q + 2 : r].strip()
-                # "忘记X" after 忘记
-                remaining = instruction[p + 2:].strip()
-                if remaining and len(remaining) < 20:
-                    return remaining
-        # "删除X相关" → X
+                return self._strip_suffixes(instruction[q + 2 :].strip())
+        # "删除X相关Y" → X
         p = instruction.find("删除")
         if p >= 0:
             q = instruction.find("相关", p)
             if q >= 0:
-                return instruction[p + 2 : q].strip()
-            remaining = instruction[p + 2:].strip()
-            if remaining and len(remaining) < 20:
-                return remaining
-        return instruction.strip()
+                return self._strip_suffixes(instruction[p + 2 : q].strip())
+        # 动词定位: 忘记/忘了/不记得/忘掉/删除 后的内容
+        verb_idx, verb_len = -1, 0
+        for v in ["不记得", "忘记", "忘了", "忘掉", "删除"]:
+            idx = instruction.find(v)
+            if idx >= 0 and (verb_idx == -1 or idx < verb_idx):
+                verb_idx, verb_len = idx, len(v)
+        if verb_idx >= 0:
+            after = instruction[verb_idx + verb_len :].strip().lstrip("了").strip()
+            if after.startswith("关于"):
+                after = after[2:].strip()
+            return self._strip_suffixes(after) if after else ""
+        return self._strip_suffixes(instruction.strip())
+
+    def _strip_suffixes(self, kw: str) -> str:
+        """Strip common trailing qualifiers like "的配置"/"的记录"/"相关的"."""
+        # 去掉尾部"相关的/相关"
+        for tail in ["相关", "的", "的记忆", "的偏好", "的设置", "的配置", "的记录"]:
+            if kw.endswith(tail):
+                kw = kw[: -len(tail)].strip()
+                break
+        return kw.strip()
 
     def _parse_scope(self, instruction: str, keyword: str) -> str:
         """Determine scope: user, topic, or all."""

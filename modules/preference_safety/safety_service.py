@@ -29,27 +29,28 @@ class SafetyService:
         entities = []
         # Phone
         for m in self.PHONE.finditer(text):
-            entities.append({"type": "phone", "value": m.group(), "start": m.start(), "end": m.end()})
+            entities.append(self._masked(m, "phone"))
         # ID card
         for m in self.ID_CARD.finditer(text):
-            entities.append({"type": "id_card", "value": m.group(), "start": m.start(), "end": m.end()})
+            entities.append(self._masked(m, "id_card"))
         # Bank card
         for m in self.BANK_CARD.finditer(text):
-            entities.append({"type": "bank_card", "value": m.group(), "start": m.start(), "end": m.end()})
+            entities.append(self._masked(m, "bank_card"))
         # Email
         for m in self.EMAIL.finditer(text):
-            entities.append({"type": "email", "value": m.group(), "start": m.start(), "end": m.end()})
+            entities.append(self._masked(m, "email"))
         # API key
         for m in self.API_KEY.finditer(text):
-            entities.append({"type": "api_key", "value": m.group(), "start": m.start(), "end": m.end()})
+            entities.append(self._masked(m, "api_key"))
         # Password-like
         for m in self.PASSWORD.finditer(text):
-            entities.append({"type": "password", "value": m.group(), "start": m.start(), "end": m.end()})
+            entities.append(self._masked(m, "password"))
         # Keyword match
         for kw in self.SENSITIVE_KWS:
             pos = text.find(kw)
             if pos >= 0:
-                entities.append({"type": "sensitive_keyword", "value": kw, "start": pos, "end": pos + len(kw)})
+                entities.append({"type": "sensitive_keyword", "value": kw,
+                                 "start": pos, "end": pos + len(kw)})
 
         has_sensitive = len(entities) > 0
         return {
@@ -57,6 +58,16 @@ class SafetyService:
             "block": has_sensitive,
             "entities": entities,
         }
+
+    @staticmethod
+    def _masked(match, etype: str) -> dict:
+        raw = match.group()
+        if len(raw) <= 6:
+            masked = "*" * len(raw)
+        else:
+            masked = raw[:3] + "*" * (len(raw) - 6) + raw[-3:]
+        return {"type": etype, "value": masked, "masked_value": masked,
+                "start": match.start(), "end": match.end()}
 
     def check_batch(self, texts: list[str]) -> list[dict]:
         return [self.check(t) for t in texts]
