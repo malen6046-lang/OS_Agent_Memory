@@ -61,12 +61,23 @@ def build_knowledge_retrieval_services(config: dict | object) -> dict[str, Any]:
     from modules.knowledge_retrieval.hybrid_retriever import HybridRetriever
     hr = HybridRetriever(emb, vs, bm)
 
+    # ── Module A: preference / safety / forget ──
+    from modules.preference_safety.preference_service import PreferenceService
+    from modules.preference_safety.safety_service import SafetyService
+    from modules.preference_safety.forget_service import ForgetService
+    ps = PreferenceService()
+    ss = SafetyService()
+    fs = ForgetService()
+
     return {
         "embedding_provider": emb,
         "vector_store": vs,
         "bm25": bm,
         "knowledge_service": ks,
         "hybrid_retriever": hr,
+        "preference_service": ps,
+        "safety_service": ss,
+        "forget_service": fs,
     }
 
 
