@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from contracts.schemas.responses import ErrorCode
+
 
 class OrchestratorError(RuntimeError):
     """Project-level error without leaking implementation exceptions."""
 
     def __init__(
         self,
-        code: str,
+        code: ErrorCode,
         message: str,
         *,
         retryable: bool = False,
@@ -26,7 +28,7 @@ class OrchestratorError(RuntimeError):
 class DependencyUnavailableError(OrchestratorError):
     def __init__(self, dependency: str, operation: str) -> None:
         super().__init__(
-            "DEPENDENCY_UNAVAILABLE",
+            ErrorCode.DEPENDENCY_UNAVAILABLE,
             f"{dependency} is unavailable",
             retryable=True,
             details={"dependency": dependency, "operation": operation},
@@ -39,7 +41,7 @@ class OrchestratorTimeoutError(OrchestratorError):
         dependency: str,
         operation: str,
         *,
-        code: str = "DEPENDENCY_UNAVAILABLE",
+        code: ErrorCode = ErrorCode.DEPENDENCY_UNAVAILABLE,
     ) -> None:
         super().__init__(
             code,
@@ -51,13 +53,13 @@ class OrchestratorTimeoutError(OrchestratorError):
 
 class ValidationOrchestratorError(OrchestratorError):
     def __init__(self, message: str = "Request validation failed") -> None:
-        super().__init__("VALIDATION_ERROR", message)
+        super().__init__(ErrorCode.VALIDATION_ERROR, message)
 
 
 class SensitiveContentBlockedError(OrchestratorError):
     def __init__(self) -> None:
         super().__init__(
-            "SENSITIVE_CONTENT_BLOCKED",
+            ErrorCode.SENSITIVE_CONTENT_BLOCKED,
             "Sensitive content policy rejected the write",
         )
 
@@ -65,6 +67,6 @@ class SensitiveContentBlockedError(OrchestratorError):
 class IdempotencyConflictError(OrchestratorError):
     def __init__(self) -> None:
         super().__init__(
-            "IDEMPOTENCY_CONFLICT",
+            ErrorCode.IDEMPOTENCY_CONFLICT,
             "The idempotency key was used for a different request",
         )

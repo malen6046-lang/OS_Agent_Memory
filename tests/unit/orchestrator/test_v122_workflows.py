@@ -3,6 +3,21 @@ import logging
 from datetime import datetime, timezone
 
 from app.orchestrator import MemoryOrchestrator
+from app.orchestrator.memory_orchestrator import _envelope_fingerprint
+from contracts.schemas.envelope import Envelope
+from contracts.schemas.evaluation import EvaluationRun
+from contracts.schemas.forget import ForgetExecutionPlan, ForgetPlan
+from contracts.schemas.knowledge import IngestResult
+from contracts.schemas.persistence import (
+    AuditResult,
+    IdempotencyEntry,
+    IngestCommitResult,
+    LogicalDeleteResult,
+)
+from contracts.schemas.preference import PreferenceCandidate, PreferenceRecord
+from contracts.schemas.provider import DeleteResult, UpsertResult, VectorItem
+from contracts.schemas.retrieval import SearchHit, SearchResponse
+from contracts.schemas.safety import SafetyCheckResult
 
 
 def run(coroutine):
@@ -27,36 +42,48 @@ def envelope_payload(**overrides):
 
 
 class PreferenceStub:
-    async def extract(self, events):
-        return [{"candidate": events[0].source_event_id}]
+    def extract(self, events):
+        return []
 
-    async def upsert(self, candidates):
-        return [{"preference": candidates[0]["candidate"]}]
+    def upsert(self, candidates):
+        return []
 
 
 class KnowledgeStub:
-    async def ingest(self, records):
-        return {"records": [{"memory_id": "mem_1"}]}
+    def ingest(self, events, preferences):
+        return IngestResult()
 
 
 class RetrieverStub:
-    async def search(self, request):
-        return {"items": []}
+    def search(self, request):
+        return SearchResponse(
+            request_id=request.request_id,
+            user_id=request.user_id,
+            items=[],
+            total=0,
+            provider="mock",
+        )
 
 
 class ForgetStub:
-    async def preview(self, request):
-        return {
-            "candidates": ["mem_1"],
-            "confirmation_token": "confirm_1",
-        }
+    def preview(self, request):
+        return ForgetPlan(
+            plan_id="plan_1",
+            user_id=request.user_id,
+            candidates=[{"memory_id": "mem_1", "user_id": request.user_id}],
+            risk_level="low",
+            confirmation_token="confirm_1",
+            expires_at=datetime.now(timezone.utc).replace(year=2030),
+        )
 
-    async def execute(self, request):
-        return {
-            "memory_ids": ["mem_1"],
-            "vector_pks": [101],
-            "status": "executed",
-        }
+    def execute(self, request):
+        return ForgetExecutionPlan(
+            request_id=request.request_id,
+            user_id=request.user_id,
+            plan_id=request.plan_id,
+            memory_ids=request.selected_ids,
+            expires_at=datetime.now(timezone.utc).replace(year=2030),
+        )
 
 
 def make_orchestrator(**overrides):
@@ -83,50 +110,84 @@ def test_ingest_runs_frozen_flow_in_order_and_returns_unified_response():
             )
             return None
 
-        def save(self, user_id, operation, key, fingerprint, response):
+        def save(self, entry):
             order.append("idempotency.save")
-            assert fingerprint
-            assert response["success"] is True
-            return {"saved": True}
+            assert entry.fingerprint
+            assert entry.response["success"] is True
 
     class SafetySpy:
-        async def check(self, envelope):
+        def check(self, envelope):
             order.append("safety.check")
-            return {"allowed": True}
+            return SafetyCheckResult(allowed=True)
 
     class PreferenceSpy:
-        async def extract(self, events):
+        def extract(self, events):
             order.append("preference.extract")
-            return ["candidate_1"]
+            return [
+                PreferenceCandidate(
+                    user_id="usr_1",
+                    preference_key="output.format",
+                    value="table",
+                    category="output_style",
+                    scope="global",
+                    scope_value="global",
+                    polarity="positive",
+                    confidence=0.9,
+                )
+            ]
 
-        async def upsert(self, candidates):
+        def upsert(self, candidates):
             order.append("preference.upsert")
-            assert candidates == ["candidate_1"]
-            return ["preference_1"]
+            return [
+                PreferenceRecord(
+                    preference_key="output.format",
+                    value="table",
+                    category="output_style",
+                    scope="global",
+                    scope_value="global",
+                    polarity="positive",
+                    confidence=0.9,
+                    evidence_count=0,
+                    evidence=[],
+                    revision=1,
+                    status="active",
+                )
+            ]
 
     class KnowledgeSpy:
-        async def ingest(self, records):
+        def ingest(self, events, preferences):
             order.append("knowledge.ingest")
-            return {"records": ["knowledge_1"]}
+            assert preferences[0].preference_key == "output.format"
+            return IngestResult()
 
     class RepositorySpy:
-        def commit(self, result):
+        def commit_ingest(self, result):
             order.append("repository.commit")
-            assert result["preferences"] == ["preference_1"]
-            return {"records": [{"memory_id": "mem_1", "vector_pk": 101}]}
+            assert result.preferences[0].preference_key == "output.format"
+            return IngestCommitResult(
+                vector_items=[
+                    VectorItem(
+                        vector_pk=101,
+                        memory_id="mem_1",
+                        user_id="usr_1",
+                        status="active",
+                        vector=[0.0],
+                    )
+                ]
+            )
 
     class VectorSpy:
-        async def upsert(self, items):
+        def upsert(self, items):
             order.append("vector.upsert")
-            assert items[0]["vector_pk"] == 101
-            return {"upserted": 1}
+            assert items[0].vector_pk == 101
+            return UpsertResult(upserted=1)
 
     class AuditSpy:
         def record(self, event):
             order.append("audit.record")
-            assert event["operation"] == "memory.ingest"
-            assert "content" not in event["metadata"]
-            return {"audit_id": "audit_1"}
+            assert event.operation == "memory.ingest"
+            assert "content" not in event.metadata
+            return AuditResult(audit_id="audit_1")
 
     orchestrator = make_orchestrator(
         preference_service=PreferenceSpy(),
@@ -158,6 +219,13 @@ def test_ingest_runs_frozen_flow_in_order_and_returns_unified_response():
 
 
 def test_ingest_replay_stops_before_safety_and_service_calls():
+    replay_payload = envelope_payload(
+        request_id="req_retry",
+        occurred_at="2026-08-03T12:00:00+08:00",
+    )
+    replay_fingerprint = _envelope_fingerprint(
+        Envelope.model_validate(replay_payload)
+    )
     stored_response = {
         "success": True,
         "request_id": "req_ingest",
@@ -167,11 +235,17 @@ def test_ingest_replay_stops_before_safety_and_service_calls():
     }
 
     class IdempotencyReplay:
-        async def get(self, user_id, operation, key):
-            return {"response": stored_response}
+        def get(self, user_id, operation, key):
+            return IdempotencyEntry(
+                user_id=user_id,
+                operation=operation,
+                idempotency_key=key,
+                fingerprint=replay_fingerprint,
+                response=stored_response,
+            )
 
     class MustNotRun:
-        async def check(self, request):
+        def check(self, request):
             raise AssertionError("safety must not run on replay")
 
     orchestrator = make_orchestrator(
@@ -179,9 +253,7 @@ def test_ingest_replay_stops_before_safety_and_service_calls():
         safety_service=MustNotRun(),
     )
 
-    response = run(
-        orchestrator.ingest(envelope_payload(request_id="req_retry"))
-    )
+    response = run(orchestrator.ingest(replay_payload))
 
     assert response["data"] == {"memory_ids": ["mem_existing"]}
     assert response["request_id"] == "req_retry"
@@ -192,12 +264,14 @@ def test_ingest_replay_stops_before_safety_and_service_calls():
 
 def test_ingest_rejects_blocked_content_before_writes():
     class EmptyIdempotency:
-        async def get(self, *args):
+        def get(self, *args):
             return None
 
     class BlockingSafety:
-        async def check(self, request):
-            return {"allowed": False, "entity_types": ["phone"]}
+        def check(self, request):
+            return SafetyCheckResult(
+                allowed=False, entity_types=["phone"]
+            )
 
     orchestrator = make_orchestrator(
         idempotency_repository=EmptyIdempotency(),
@@ -221,16 +295,18 @@ def test_ingest_rejects_invalid_envelope_before_dependencies():
 
 def test_search_enforces_user_and_active_status_filters():
     class MixedRetriever:
-        async def search(self, request):
-            return {
-                "items": [
-                    {"memory_id": "keep", "user_id": "usr_1", "status": "active"},
-                    {"memory_id": "other", "user_id": "usr_2", "status": "active"},
-                    {"memory_id": "deleted", "user_id": "usr_1", "status": "tombstoned"},
-                    {"memory_id": "unknown", "user_id": "usr_1"},
+        def search(self, request):
+            return SearchResponse(
+                request_id=request.request_id,
+                user_id=request.user_id,
+                items=[
+                    SearchHit(memory_id="keep", user_id="usr_1", status="active", content_text="keep", score=1.0),
+                    SearchHit(memory_id="other", user_id="usr_2", status="active", content_text="other", score=0.9),
+                    SearchHit(memory_id="deleted", user_id="usr_1", status="tombstoned", content_text="deleted", score=0.8),
                 ],
-                "total": 4,
-            }
+                total=3,
+                provider="hybrid",
+            )
 
     orchestrator = make_orchestrator(retriever=MixedRetriever())
 
@@ -243,25 +319,33 @@ def test_search_enforces_user_and_active_status_filters():
     assert response["success"] is True
     assert [item["memory_id"] for item in response["data"]["items"]] == ["keep"]
     assert response["data"]["total"] == 1
-    assert response["meta"] == {
-        "elapsed_ms": response["meta"]["elapsed_ms"],
-        "degraded": False,
-        "provider": "hybrid",
-    }
+    assert response["meta"]["degraded"] is False
+    assert response["meta"]["provider"] == "hybrid"
 
 
 def test_search_marks_fallback_result_as_degraded():
     class UnavailableRetriever:
-        async def search(self, request):
+        def search(self, request):
             raise ConnectionError("vendor details must not escape")
 
     class FallbackRetriever:
         def search(self, request):
-            return {
-                "items": [
-                    {"memory_id": "mem_1", "user_id": "usr_1", "status": "active"}
-                ]
-            }
+            return SearchResponse(
+                request_id=request.request_id,
+                user_id=request.user_id,
+                items=[
+                    SearchHit(
+                        memory_id="mem_1",
+                        user_id="usr_1",
+                        status="active",
+                        content_text="fallback",
+                        score=1.0,
+                    )
+                ],
+                total=1,
+                provider="fallback",
+                degraded=True,
+            )
 
     orchestrator = make_orchestrator(
         retriever=UnavailableRetriever(),
@@ -303,13 +387,19 @@ def test_search_timeout_is_converted_to_frozen_error_code():
 
 def test_preview_forget_only_returns_candidates_and_token():
     class PreviewSpy:
-        async def preview(self, request):
-            return {
-                "candidate_list": ["mem_1"],
-                "confirmation_token": "confirm_1",
-            }
+        def preview(self, request):
+            return ForgetPlan(
+                plan_id="plan_1",
+                user_id=request.user_id,
+                candidates=[
+                    {"memory_id": "mem_1", "user_id": request.user_id}
+                ],
+                risk_level="low",
+                confirmation_token="confirm_1",
+                expires_at=datetime.now(timezone.utc).replace(year=2030),
+            )
 
-        async def execute(self, request):
+        def execute(self, request):
             raise AssertionError("preview cannot execute deletion")
 
     response = run(
@@ -323,7 +413,7 @@ def test_preview_forget_only_returns_candidates_and_token():
     )
 
     assert response["success"] is True
-    assert response["data"]["candidate_list"] == ["mem_1"]
+    assert response["data"]["candidates"][0]["memory_id"] == "mem_1"
     assert response["data"]["confirmation_token"] == "confirm_1"
 
 
@@ -331,31 +421,49 @@ def test_execute_forget_orders_logical_vector_and_audit_steps():
     order = []
 
     class ForgetSpy:
-        async def execute(self, request):
+        def execute(self, request):
+            order.append("validate_execute")
+            return ForgetExecutionPlan(
+                request_id=request.request_id,
+                user_id=request.user_id,
+                plan_id=request.plan_id,
+                memory_ids=request.selected_ids,
+                expires_at=datetime.now(timezone.utc).replace(year=2030),
+            )
+
+    class RepositorySpy:
+        def logical_delete(self, plan):
             order.append("logical_delete")
-            return {"memory_ids": ["mem_1"], "vector_pks": [101]}
+            return LogicalDeleteResult(
+                plan_id=plan.plan_id,
+                user_id=plan.user_id,
+                memory_ids=plan.memory_ids,
+                vector_pks=[101],
+            )
 
     class VectorSpy:
-        async def delete(self, vector_pks):
+        def delete(self, vector_pks):
             order.append("vector_delete")
             assert vector_pks == [101]
-            return {"deleted": 1}
+            return DeleteResult(deleted=1)
 
     class AuditSpy:
-        async def record(self, event):
+        def record(self, event):
             order.append("audit")
-            assert event["metadata"]["memory_ids"] == ["mem_1"]
-            return {"audit_id": "audit_1"}
+            assert event.metadata["memory_ids"] == ["mem_1"]
+            return AuditResult(audit_id="audit_1")
 
     response = run(
         make_orchestrator(
             forget_service=ForgetSpy(),
+            repository=RepositorySpy(),
             vector_store=VectorSpy(),
             audit_repository=AuditSpy(),
         ).execute_forget(
             {
                 "request_id": "req_forget",
                 "user_id": "usr_1",
+                "plan_id": "plan_1",
                 "confirmation_token": "confirm_1",
                 "selected_ids": ["mem_1"],
             }
@@ -363,13 +471,24 @@ def test_execute_forget_orders_logical_vector_and_audit_steps():
     )
 
     assert response["success"] is True
-    assert order == ["logical_delete", "vector_delete", "audit"]
+    assert order == [
+        "validate_execute",
+        "logical_delete",
+        "vector_delete",
+        "audit",
+    ]
 
 
 def test_run_evaluation_delegates_and_wraps_result():
     class EvaluationSpy:
-        async def run(self, request):
-            return {"run_id": "run_1", "status": "completed"}
+        def run(self, request):
+            return EvaluationRun(
+                run_id="run_1",
+                request_id=request.request_id,
+                status="completed",
+                metrics={"recall": 1.0},
+                created_at=datetime.now(timezone.utc),
+            )
 
     response = run(
         make_orchestrator(evaluation_service=EvaluationSpy()).run_evaluation(

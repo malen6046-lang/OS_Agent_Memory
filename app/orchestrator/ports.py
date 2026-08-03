@@ -1,34 +1,34 @@
-"""Frozen contract exports consumed by the orchestration layer.
+"""Direct exports of the approved V1.2.2 contract Protocols."""
 
-The contract modules are the sole authority. ``Any`` is used only while a
-planned protocol has not yet been published; no duplicate Protocol is defined
-inside ``app/orchestrator``.
-"""
-
-from typing import Any
-
-from contracts.protocols import embedding as embedding_contract
-from contracts.protocols import forget as forget_contract
-from contracts.protocols import knowledge as knowledge_contract
-from contracts.protocols import preference as preference_contract
-from contracts.protocols import retrieval as retrieval_contract
-from contracts.protocols import safety as safety_contract
-from contracts.protocols import vector_store as vector_store_contract
-
-
-PreferenceService = getattr(
-    preference_contract, "PreferenceService", Any
+from contracts.protocols.embedding import EmbeddingProvider
+from contracts.protocols.evaluation import EvaluationService
+from contracts.protocols.forget import ForgetService
+from contracts.protocols.knowledge import KnowledgeService
+from contracts.protocols.memory import (
+    AuditRepository,
+    IdempotencyRepository,
+    MemoryRepository,
 )
-KnowledgeService = getattr(knowledge_contract, "KnowledgeService", Any)
-HybridRetriever = getattr(retrieval_contract, "HybridRetriever", Any)
-ForgetService = getattr(forget_contract, "ForgetService", Any)
-SafetyService = getattr(safety_contract, "SafetyService", Any)
-EmbeddingProvider = getattr(
-    embedding_contract, "EmbeddingProvider", Any
-)
-VectorStoreAdapter = getattr(
-    vector_store_contract, "VectorStoreAdapter", Any
-)
+from contracts.protocols.preference import PreferenceService
+from contracts.protocols.retrieval import HybridRetriever
+from contracts.protocols.safety import SafetyService
+from contracts.protocols.vector_store import VectorStoreAdapter
+
 
 # Backward-compatible name used by the existing dependency container.
 Retriever = HybridRetriever
+
+__all__ = [
+    "AuditRepository",
+    "EmbeddingProvider",
+    "EvaluationService",
+    "ForgetService",
+    "HybridRetriever",
+    "IdempotencyRepository",
+    "KnowledgeService",
+    "MemoryRepository",
+    "PreferenceService",
+    "Retriever",
+    "SafetyService",
+    "VectorStoreAdapter",
+]

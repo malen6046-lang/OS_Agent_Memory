@@ -1,39 +1,21 @@
-"""Unified success and error response models for the HTTP API."""
+"""HTTP helpers backed by the frozen V1.2.2 response contract."""
 
 from __future__ import annotations
 
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, JsonValue, model_validator
+from pydantic import JsonValue
+
+from contracts.schemas.responses import (
+    ApiResponse,
+    ErrorDetail,
+    ResponseMeta,
+)
 
 
 ResponseData = TypeVar("ResponseData")
-
-
-class ApiError(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    code: str
-    message: str
-    details: dict[str, JsonValue] | None = None
-
-
-class ApiResponse(BaseModel, Generic[ResponseData]):
-    model_config = ConfigDict(extra="forbid")
-
-    success: bool
-    request_id: str
-    data: ResponseData | None = None
-    error: ApiError | None = None
-
-    @model_validator(mode="after")
-    def validate_success_error_pair(self) -> "ApiResponse[ResponseData]":
-        if self.success and self.error is not None:
-            raise ValueError("successful responses cannot contain an error")
-        if not self.success and self.error is None:
-            raise ValueError("failed responses must contain an error")
-        return self
+ApiError = ErrorDetail
 
 
 def new_request_id() -> str:
@@ -41,9 +23,17 @@ def new_request_id() -> str:
 
 
 def success_response(
-    request_id: str, data: ResponseData
+    request_id: str,
+    data: ResponseData,
+    *,
+    meta: ResponseMeta | None = None,
 ) -> ApiResponse[ResponseData]:
-    return ApiResponse(success=True, request_id=request_id, data=data)
+    return ApiResponse(
+        success=True,
+        request_id=request_id,
+        data=data,
+        meta=meta or ResponseMeta(),
+    )
 
 
 def error_response(
@@ -51,9 +41,28 @@ def error_response(
     code: str,
     message: str,
     details: dict[str, JsonValue] | None = None,
+    *,
+    retryable: bool = False,
+    meta: ResponseMeta | None = None,
 ) -> ApiResponse[Any]:
     return ApiResponse(
         success=False,
         request_id=request_id,
-        error=ApiError(code=code, message=message, details=details),
+        error=ErrorDetail(
+            code=code,
+            message=message,
+            retryable=retryable,
+            details=details or {},
+        ),
+        meta=meta or ResponseMeta(),
     )
+
+
+__all__ = [
+    "ApiError",
+    "ApiResponse",
+    "ResponseMeta",
+    "error_response",
+    "new_request_id",
+    "success_response",
+]

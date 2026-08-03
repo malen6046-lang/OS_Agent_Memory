@@ -16,11 +16,19 @@ EXPECTED_ROUTES = {
 def assert_success_response(response):
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"success", "request_id", "data", "error"}
+    assert set(body) == {
+        "success",
+        "request_id",
+        "data",
+        "error",
+        "meta",
+    }
     assert body["success"] is True
     assert body["request_id"]
     assert body["data"] is not None
     assert body["error"] is None
+    assert body["meta"]["degraded"] is False
+    assert body["meta"]["elapsed_ms"] >= 0
     assert response.headers["X-Request-ID"] == body["request_id"]
     return body
 
@@ -97,6 +105,7 @@ def test_caller_request_id_is_preserved(client):
                 "user_id": "usr_1",
                 "plan_id": "forget_plan_1",
                 "confirmation_token": "confirm_1",
+                "selected_ids": ["mem_1"],
             },
             "status",
         ),
@@ -144,3 +153,93 @@ def test_not_found_uses_unified_error_response(client):
     assert body["request_id"]
     assert body["data"] is None
     assert body["error"]["code"] == "http_404"
+
+
+def test_mock_api_import_search_forget_is_user_scoped(client):
+    def ingest(user_id, event_id, content):
+        response = client.post(
+            "/api/v1/events/ingest",
+            json={
+                "contract_version": "1.0",
+                "request_id": f"req_{event_id}",
+                "idempotency_key": f"idem_{event_id}",
+                "user_id": user_id,
+                "session_id": None,
+                "scene": "mvp_demo",
+                "source": "tool_result",
+                "source_event_id": event_id,
+                "occurred_at": datetime.now(timezone.utc).isoformat(),
+                "payload": {"content": content},
+            },
+        )
+        body = assert_success_response(response)
+        records = body["data"]["result"]["repository_result"]["records"]
+        assert len(records) == 1
+        return records[0]["memory_id"]
+
+    first_memory_id = ingest(
+        "usr_demo_1",
+        "evt_demo_1",
+        "Remember the release checklist and deployment notes.",
+    )
+    second_memory_id = ingest(
+        "usr_demo_2",
+        "evt_demo_2",
+        "Private memory belonging to another user.",
+    )
+
+    first_search = assert_success_response(
+        client.post(
+            "/api/v1/memory/search",
+            json={
+                "user_id": "usr_demo_1",
+                "query": "release checklist",
+                "top_k": 5,
+            },
+        )
+    )
+    assert [
+        item["memory_id"] for item in first_search["data"]["items"]
+    ] == [first_memory_id]
+    assert second_memory_id not in {
+        item["memory_id"] for item in first_search["data"]["items"]
+    }
+
+    preview = assert_success_response(
+        client.post(
+            "/api/v1/forget/preview",
+            json={
+                "user_id": "usr_demo_1",
+                "memory_ids": [first_memory_id],
+                "reason": "MVP demonstration",
+            },
+        )
+    )
+    assert preview["data"]["affected_memory_ids"] == [first_memory_id]
+
+    executed = assert_success_response(
+        client.post(
+            "/api/v1/forget/execute",
+            json={
+                "user_id": "usr_demo_1",
+                "plan_id": preview["data"]["plan_id"],
+                "confirmation_token": preview["data"][
+                    "confirmation_token"
+                ],
+                "selected_ids": [first_memory_id],
+            },
+        )
+    )
+    assert executed["data"]["status"] == "executed"
+
+    after_forget = assert_success_response(
+        client.post(
+            "/api/v1/memory/search",
+            json={
+                "user_id": "usr_demo_1",
+                "query": "release checklist",
+                "top_k": 5,
+            },
+        )
+    )
+    assert after_forget["data"]["items"] == []

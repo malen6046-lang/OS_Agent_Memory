@@ -10,6 +10,22 @@ from .common import (
 )
 
 
+class PreferenceCandidate(BaseModel):
+    """A not-yet-persisted preference extracted from source evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: NonEmptyString
+    preference_key: NonEmptyString
+    value: JsonValue
+    category: NonEmptyString
+    scope: PreferenceScope
+    scope_value: NonEmptyString
+    polarity: PreferencePolarity
+    confidence: float = Field(ge=0, le=1)
+    evidence: list[dict[str, JsonValue]] = Field(default_factory=list)
+
+
 class PreferenceRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

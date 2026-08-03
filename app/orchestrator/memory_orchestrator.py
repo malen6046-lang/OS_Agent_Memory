@@ -18,6 +18,32 @@ from typing import Any
 
 from contracts.schemas.common import MemoryStatus
 from contracts.schemas.envelope import Envelope
+from contracts.schemas.evaluation import EvaluationRun, EvaluationRunRequest
+from contracts.schemas.forget import (
+    ForgetExecuteRequest,
+    ForgetExecutionPlan,
+    ForgetPlan,
+    ForgetPreviewRequest,
+)
+from contracts.schemas.knowledge import IngestResult
+from contracts.schemas.persistence import (
+    AuditEvent,
+    AuditResult,
+    IdempotencyEntry,
+    IngestCommitResult,
+    IngestServiceResult,
+    LogicalDeleteResult,
+)
+from contracts.schemas.preference import PreferenceCandidate, PreferenceRecord
+from contracts.schemas.provider import DeleteResult, UpsertResult
+from contracts.schemas.responses import (
+    ApiResponse,
+    ErrorCode,
+    ErrorDetail,
+    ResponseMeta,
+)
+from contracts.schemas.retrieval import SearchRequest, SearchResponse
+from contracts.schemas.safety import SafetyCheckResult
 
 from .errors import (
     DependencyUnavailableError,
@@ -28,9 +54,13 @@ from .errors import (
     ValidationOrchestratorError,
 )
 from .ports import (
+    AuditRepository,
+    EvaluationService,
     ForgetService,
     HybridRetriever,
+    IdempotencyRepository,
     KnowledgeService,
+    MemoryRepository,
     PreferenceService,
     SafetyService,
     VectorStoreAdapter,
@@ -52,11 +82,11 @@ class MemoryOrchestrator:
         forget_service: ForgetService,
         *,
         safety_service: SafetyService | None = None,
-        idempotency_repository: Any = None,
-        repository: Any = None,
+        idempotency_repository: IdempotencyRepository | None = None,
+        repository: MemoryRepository | None = None,
         vector_store: VectorStoreAdapter | None = None,
-        audit_repository: Any = None,
-        evaluation_service: Any = None,
+        audit_repository: AuditRepository | None = None,
+        evaluation_service: EvaluationService | None = None,
         fallback_retriever: HybridRetriever | None = None,
         timeout_seconds: float | Mapping[str, float] = (
             DEFAULT_TIMEOUT_SECONDS
@@ -96,6 +126,13 @@ class MemoryOrchestrator:
                 "ingest",
                 validated.idempotency_key,
             )
+            if existing is not None:
+                existing = _contract_result(
+                    IdempotencyEntry,
+                    existing,
+                    "idempotency_repository",
+                    "get",
+                )
             self._log("ingest", "idempotency_checked", request_id)
             replay = self._replay_response(existing, fingerprint)
             if replay is not None:
@@ -110,6 +147,12 @@ class MemoryOrchestrator:
                 "check",
                 validated,
             )
+            safety_result = _contract_result(
+                SafetyCheckResult,
+                safety_result,
+                "safety_service",
+                "check",
+            )
             if _is_safety_blocked(safety_result):
                 raise SensitiveContentBlockedError()
             self._log("ingest", "safety_checked", request_id)
@@ -120,38 +163,69 @@ class MemoryOrchestrator:
                 "extract",
                 [validated],
             )
+            candidates = _contract_list(
+                PreferenceCandidate,
+                candidates,
+                "preference_service",
+                "extract",
+            )
             preferences = await self._dependency_call(
                 "preference_service",
                 self._preference_service,
                 "upsert",
                 candidates,
             )
+            preferences = _contract_list(
+                PreferenceRecord,
+                preferences,
+                "preference_service",
+                "upsert",
+            )
             knowledge = await self._dependency_call(
                 "knowledge_service",
                 self._knowledge_service,
                 "ingest",
                 [validated],
+                preferences,
             )
-            service_result = {
-                "preferences": preferences,
-                "knowledge": knowledge,
-            }
+            knowledge = _contract_result(
+                IngestResult,
+                knowledge,
+                "knowledge_service",
+                "ingest",
+            )
+            service_result = IngestServiceResult(
+                preferences=preferences,
+                knowledge=knowledge,
+            )
             self._log("ingest", "services_called", request_id)
 
             committed = await self._dependency_call(
                 "repository",
                 self._repository,
-                "commit",
+                "commit_ingest",
                 service_result,
+            )
+            committed = _contract_result(
+                IngestCommitResult,
+                committed,
+                "repository",
+                "commit_ingest",
             )
             self._log("ingest", "repository_committed", request_id)
 
-            vector_items = _vector_items(committed, service_result)
+            vector_items = committed.vector_items
             vector_result = await self._dependency_call(
                 "vector_store",
                 self._vector_store,
                 "upsert",
                 vector_items,
+            )
+            vector_result = _contract_result(
+                UpsertResult,
+                vector_result,
+                "vector_store",
+                "upsert",
             )
             self._log("ingest", "vector_synced", request_id)
 
@@ -175,15 +249,18 @@ class MemoryOrchestrator:
                 request_id, data, started, provider="configured"
             )
 
+            entry = IdempotencyEntry(
+                user_id=validated.user_id,
+                operation="ingest",
+                idempotency_key=validated.idempotency_key,
+                fingerprint=fingerprint,
+                response=response,
+            )
             await self._dependency_call(
                 "idempotency_repository",
                 self._idempotency_repository,
                 "save",
-                validated.user_id,
-                "ingest",
-                validated.idempotency_key,
-                fingerprint,
-                response,
+                entry,
             )
             self._log("ingest", "completed", request_id)
             return response
@@ -198,8 +275,8 @@ class MemoryOrchestrator:
         self._log("search", "start", request_id)
 
         try:
-            user_id = _required_text(request, "user_id")
-            _required_text(request, "query")
+            validated_request = _request_contract(SearchRequest, request)
+            user_id = validated_request.user_id
         except ValidationOrchestratorError as exc:
             return self._failure(request_id, exc, started)
 
@@ -211,8 +288,14 @@ class MemoryOrchestrator:
                 "hybrid_retriever",
                 self._retriever,
                 "search",
-                request,
-                timeout_code="SEARCH_TIMEOUT",
+                validated_request,
+                timeout_code=ErrorCode.SEARCH_TIMEOUT,
+            )
+            result = _contract_result(
+                SearchResponse,
+                result,
+                "hybrid_retriever",
+                "search",
             )
         except (DependencyUnavailableError, OrchestratorTimeoutError) as exc:
             if self._fallback_retriever is None:
@@ -225,8 +308,14 @@ class MemoryOrchestrator:
                     "fallback_retriever",
                     self._fallback_retriever,
                     "search",
-                    request,
-                    timeout_code="SEARCH_TIMEOUT",
+                    validated_request,
+                    timeout_code=ErrorCode.SEARCH_TIMEOUT,
+                )
+                result = _contract_result(
+                    SearchResponse,
+                    result,
+                    "fallback_retriever",
+                    "search",
                 )
             except OrchestratorError as fallback_error:
                 self._log(
@@ -262,14 +351,21 @@ class MemoryOrchestrator:
         request_id = _value(request, "request_id", "")
         self._log("forget.preview", "start", request_id)
         try:
-            _required_text(request, "user_id")
+            validated_request = _request_contract(
+                ForgetPreviewRequest, request
+            )
             plan = await self._dependency_call(
                 "forget_service",
                 self._forget_service,
                 "preview",
-                request,
+                validated_request,
             )
-            _validate_forget_plan(plan)
+            plan = _contract_result(
+                ForgetPlan,
+                plan,
+                "forget_service",
+                "preview",
+            )
             self._log("forget.preview", "completed", request_id)
             return self._success(
                 request_id, plan, started, provider="forget_service"
@@ -290,36 +386,53 @@ class MemoryOrchestrator:
         request_id = _value(request, "request_id", "")
         self._log("forget.execute", "start", request_id)
         try:
-            user_id = _required_text(request, "user_id")
-            _required_text(request, "confirmation_token")
+            validated_request = _request_contract(
+                ForgetExecuteRequest, request
+            )
+            user_id = validated_request.user_id
 
-            logical_result = await self._dependency_call(
+            execution_plan = await self._dependency_call(
                 "forget_service",
                 self._forget_service,
                 "execute",
-                request,
+                validated_request,
+            )
+            execution_plan = _contract_result(
+                ForgetExecutionPlan,
+                execution_plan,
+                "forget_service",
+                "execute",
+            )
+            logical_result = await self._dependency_call(
+                "repository",
+                self._repository,
+                "logical_delete",
+                execution_plan,
+            )
+            logical_result = _contract_result(
+                LogicalDeleteResult,
+                logical_result,
+                "repository",
+                "logical_delete",
             )
             self._log("forget.execute", "logical_delete", request_id)
 
-            vector_pks = _list_value(
-                logical_result,
-                "vector_pks",
-                "deleted_vector_pks",
-            )
+            vector_pks = logical_result.vector_pks
             vector_result = await self._dependency_call(
                 "vector_store",
                 self._vector_store,
                 "delete",
                 vector_pks,
             )
+            vector_result = _contract_result(
+                DeleteResult,
+                vector_result,
+                "vector_store",
+                "delete",
+            )
             self._log("forget.execute", "vector_delete", request_id)
 
-            memory_ids = _list_value(
-                logical_result,
-                "memory_ids",
-                "deleted_memory_ids",
-                "selected_ids",
-            )
+            memory_ids = logical_result.memory_ids
             audit_result = await self._write_audit(
                 operation="memory.forget",
                 request_id=request_id,
@@ -351,11 +464,20 @@ class MemoryOrchestrator:
         request_id = _value(request, "request_id", "")
         self._log("evaluation", "start", request_id)
         try:
+            validated_request = _request_contract(
+                EvaluationRunRequest, request
+            )
             result = await self._dependency_call(
                 "evaluation_service",
                 self._evaluation_service,
                 "run",
-                request,
+                validated_request,
+            )
+            result = _contract_result(
+                EvaluationRun,
+                result,
+                "evaluation_service",
+                "run",
             )
             self._log("evaluation", "completed", request_id)
             return self._success(
@@ -439,17 +561,23 @@ class MemoryOrchestrator:
         user_id: str,
         metadata: dict[str, Any],
     ) -> Any:
-        event = {
-            "operation": operation,
-            "request_id": request_id,
-            "user_id": user_id,
-            "metadata": metadata,
-        }
+        event = AuditEvent(
+            operation=operation,
+            request_id=request_id,
+            user_id=user_id,
+            metadata=metadata,
+        )
         result = await self._dependency_call(
             "audit_repository",
             self._audit_repository,
             "record",
             event,
+        )
+        result = _contract_result(
+            AuditResult,
+            result,
+            "audit_repository",
+            "record",
         )
         self._log(operation, "audit_written", request_id)
         return result
@@ -460,7 +588,7 @@ class MemoryOrchestrator:
         dependency: Any,
         method_name: str,
         *args: Any,
-        timeout_code: str = "DEPENDENCY_UNAVAILABLE",
+        timeout_code: ErrorCode = ErrorCode.DEPENDENCY_UNAVAILABLE,
     ) -> Any:
         try:
             return await self._invoke(
@@ -483,7 +611,7 @@ class MemoryOrchestrator:
         dependency: Any,
         method_name: str,
         *args: Any,
-        timeout_code: str = "DEPENDENCY_UNAVAILABLE",
+        timeout_code: ErrorCode = ErrorCode.DEPENDENCY_UNAVAILABLE,
     ) -> Any:
         if dependency is None:
             raise DependencyUnavailableError(dependency_name, method_name)
@@ -529,20 +657,18 @@ class MemoryOrchestrator:
         provider: str,
         degradation_reason: str | None = None,
     ) -> dict[str, Any]:
-        meta: dict[str, Any] = {
-            "elapsed_ms": _elapsed_ms(started),
-            "degraded": degraded,
-            "provider": provider,
-        }
-        if degradation_reason:
-            meta["degradation_reason"] = degradation_reason
-        return {
-            "success": True,
-            "request_id": request_id,
-            "data": data,
-            "error": None,
-            "meta": meta,
-        }
+        response = ApiResponse[Any](
+            success=True,
+            request_id=request_id,
+            data=data,
+            meta=ResponseMeta(
+                elapsed_ms=_elapsed_ms(started),
+                degraded=degraded,
+                provider=provider,
+                degradation_reason=degradation_reason,
+            ),
+        )
+        return response.model_dump(mode="json")
 
     def _failure(
         self,
@@ -550,21 +676,21 @@ class MemoryOrchestrator:
         error: OrchestratorError,
         started: float,
     ) -> dict[str, Any]:
-        return {
-            "success": False,
-            "request_id": request_id,
-            "data": None,
-            "error": {
-                "code": error.code,
-                "message": error.message,
-                "retryable": error.retryable,
-                "details": error.details,
-            },
-            "meta": {
-                "elapsed_ms": _elapsed_ms(started),
-                "degraded": False,
-            },
-        }
+        response = ApiResponse[Any](
+            success=False,
+            request_id=request_id or "req_unknown",
+            error=ErrorDetail(
+                code=error.code,
+                message=error.message,
+                retryable=error.retryable,
+                details=error.details,
+            ),
+            meta=ResponseMeta(
+                elapsed_ms=_elapsed_ms(started),
+                degraded=False,
+            ),
+        )
+        return response.model_dump(mode="json")
 
     def _log(
         self,
@@ -572,7 +698,7 @@ class MemoryOrchestrator:
         step: str,
         request_id: str,
         *,
-        error_code: str | None = None,
+        error_code: ErrorCode | None = None,
     ) -> None:
         fields = {
             "flow": flow,
@@ -590,11 +716,41 @@ def _value(source: Any, key: str, default: Any = None) -> Any:
     return getattr(source, key, default)
 
 
-def _required_text(source: Any, key: str) -> str:
-    value = _value(source, key)
-    if not isinstance(value, str) or not value.strip():
-        raise ValidationOrchestratorError(f"{key} must be a non-empty string")
-    return value.strip()
+def _request_contract(model: Any, value: Any) -> Any:
+    try:
+        return model.model_validate(value)
+    except Exception as exc:
+        raise ValidationOrchestratorError() from exc
+
+
+def _contract_result(
+    model: Any,
+    value: Any,
+    dependency: str,
+    operation: str,
+) -> Any:
+    try:
+        return model.model_validate(value)
+    except Exception as exc:
+        raise DependencyUnavailableError(
+            dependency, f"{operation}.invalid_response"
+        ) from exc
+
+
+def _contract_list(
+    model: Any,
+    values: Any,
+    dependency: str,
+    operation: str,
+) -> list[Any]:
+    if not isinstance(values, list):
+        raise DependencyUnavailableError(
+            dependency, f"{operation}.invalid_response"
+        )
+    return [
+        _contract_result(model, value, dependency, operation)
+        for value in values
+    ]
 
 
 def _envelope_fingerprint(envelope: Envelope) -> str:
@@ -613,18 +769,6 @@ def _is_safety_blocked(result: Any) -> bool:
     allowed = _value(result, "allowed", True)
     blocked = _value(result, "blocked", False)
     return allowed is False or blocked is True
-
-
-def _vector_items(committed: Any, fallback: Any) -> list[Any]:
-    if isinstance(committed, list):
-        return committed
-    records = _value(committed, "records", None)
-    if isinstance(records, list):
-        return records
-    if isinstance(fallback, list):
-        return fallback
-    fallback_records = _value(fallback, "records", None)
-    return fallback_records if isinstance(fallback_records, list) else []
 
 
 def _filter_search_result(result: Any, user_id: str) -> dict[str, Any]:
@@ -659,29 +803,6 @@ def _item_value(item: Any, key: str) -> Any:
 
 def _status_value(status: Any) -> Any:
     return getattr(status, "value", status)
-
-
-def _validate_forget_plan(plan: Any) -> None:
-    token = _value(plan, "confirmation_token", None)
-    candidates = _list_value(
-        plan, "candidates", "candidate_list", "memory_ids"
-    )
-    if not isinstance(token, str) or not token.strip():
-        raise DependencyUnavailableError(
-            "forget_service", "preview.confirmation_token"
-        )
-    if not candidates:
-        raise ValidationOrchestratorError(
-            "forget preview returned no candidates"
-        )
-
-
-def _list_value(source: Any, *keys: str) -> list[Any]:
-    for key in keys:
-        value = _value(source, key, None)
-        if isinstance(value, list):
-            return value
-    return []
 
 
 def _elapsed_ms(started: float) -> int:

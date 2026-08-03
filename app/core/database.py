@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 from threading import Lock
 
-from sqlalchemy import Engine, URL, create_engine, event
+from sqlalchemy import Engine, URL, create_engine, event, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -43,6 +43,7 @@ def init_db(database_url: str | Path | URL | None = None) -> Engine:
 
         try:
             Base.metadata.create_all(engine)
+            _migrate_legacy_schema(engine)
         except Exception:
             engine.dispose()
             raise
@@ -108,3 +109,45 @@ def _enable_sqlite_foreign_keys(engine: Engine) -> None:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
+
+
+def _migrate_legacy_schema(engine: Engine) -> None:
+    """Add repository payload columns to databases created by migration 0001."""
+    additions = {
+        "memory_record": {
+            "vector_pk": "INTEGER",
+            "record_json": "JSON NOT NULL DEFAULT '{}'",
+        },
+        "idempotency_record": {
+            "user_id": "VARCHAR NOT NULL DEFAULT 'legacy'",
+            "fingerprint": "VARCHAR NOT NULL DEFAULT 'legacy'",
+            "response_json": "JSON NOT NULL DEFAULT '{}'",
+        },
+        "audit_log": {
+            "user_id": "VARCHAR NOT NULL DEFAULT 'system'",
+            "metadata_json": "JSON NOT NULL DEFAULT '{}'",
+        },
+    }
+
+    inspector = inspect(engine)
+    with engine.begin() as connection:
+        for table_name, columns in additions.items():
+            existing = {
+                column["name"]
+                for column in inspector.get_columns(table_name)
+            }
+            for column_name, declaration in columns.items():
+                if column_name not in existing:
+                    connection.execute(
+                        text(
+                            f"ALTER TABLE {table_name} "
+                            f"ADD COLUMN {column_name} {declaration}"
+                        )
+                    )
+        connection.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "ix_memory_record_vector_pk "
+                "ON memory_record (vector_pk)"
+            )
+        )

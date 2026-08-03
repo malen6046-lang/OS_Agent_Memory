@@ -21,7 +21,8 @@ async def preview_forget(
     service: MockService = Depends(get_mock_service),
 ) -> ApiResponse[dict[str, Any]]:
     return success_response(
-        request_id, await service.preview_forget(preview_request)
+        request_id,
+        await service.preview_forget(preview_request, request_id=request_id),
     )
 
 
@@ -32,5 +33,6 @@ async def execute_forget(
     service: MockService = Depends(get_mock_service),
 ) -> ApiResponse[dict[str, Any]]:
     return success_response(
-        request_id, await service.execute_forget(execute_request)
+        request_id,
+        await service.execute_forget(execute_request, request_id=request_id),
     )

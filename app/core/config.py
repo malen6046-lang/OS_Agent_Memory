@@ -47,6 +47,9 @@ class VectorStoreConfig(BaseModel):
 
     provider: NonEmptyString
     implementation: NonEmptyString | None = None
+    collection_name: NonEmptyString = "os_agent_memory"
+    expected_dimension: int = Field(default=768, gt=0)
+    metric: Literal["cosine", "inner_product", "l2"] = "cosine"
 
 
 class ServicesConfig(BaseModel):
@@ -60,6 +63,11 @@ class ServicesConfig(BaseModel):
     forget_implementation: NonEmptyString | None = None
     knowledge_implementation: NonEmptyString | None = None
     retriever_implementation: NonEmptyString | None = None
+    memory_repository_implementation: NonEmptyString | None = None
+    idempotency_repository_implementation: NonEmptyString | None = None
+    audit_repository_implementation: NonEmptyString | None = None
+    evaluation_implementation: NonEmptyString | None = None
+    fallback_retriever_implementation: NonEmptyString | None = None
 
 
 class RetrievalConfig(BaseModel):

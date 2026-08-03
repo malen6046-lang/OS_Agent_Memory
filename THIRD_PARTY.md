@@ -70,6 +70,39 @@ README.md
 - Project location: contracts/schemas/
 - Maintainer: 平台与集成负责人
 
+## Streamlit
+
+- Version: 1.37.1
+- Repository: https://github.com/streamlit/streamlit
+- License: Apache-2.0
+- Usage: OS Agent Memory MVP interactive frontend
+- Integration type: Frontend runtime dependency installed by package manager
+- Modified source: No
+- Project location: frontend/
+- Maintainer: project maintainer / platform integration
+
+## HTTPX
+
+- Version: 0.27.0
+- Repository: https://github.com/encode/httpx
+- License: BSD-3-Clause
+- Usage: Frontend-to-FastAPI HTTP client
+- Integration type: Frontend runtime dependency installed by package manager
+- Modified source: No
+- Project location: frontend/src/api/client.py
+- Maintainer: project maintainer / platform integration
+
+## Uvicorn
+
+- Version: 0.51.0
+- Repository: https://github.com/Kludex/uvicorn
+- License: BSD-3-Clause
+- Usage: ASGI server for running the existing FastAPI backend during the MVP demo
+- Integration type: Demo runtime dependency installed by package manager
+- Modified source: No
+- Project location: frontend/requirements.txt
+- Maintainer: project maintainer / platform integration
+
 ## SQLAlchemy
 
 - Repository: https://github.com/sqlalchemy/sqlalchemy

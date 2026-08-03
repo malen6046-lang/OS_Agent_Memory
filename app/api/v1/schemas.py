@@ -31,6 +31,7 @@ class ForgetExecuteRequest(BaseModel):
     user_id: NonEmptyString
     plan_id: NonEmptyString
     confirmation_token: NonEmptyString
+    selected_ids: list[NonEmptyString] = Field(min_length=1)
 
 
 class EvaluationRunRequest(BaseModel):
