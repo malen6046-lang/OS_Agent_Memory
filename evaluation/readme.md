@@ -1,4 +1,4 @@
-# evaluation/（Dataset V0.1，按 8_3 审核整改）
+# evaluation/（Dataset V0.1）
 
 ## 结构
 
