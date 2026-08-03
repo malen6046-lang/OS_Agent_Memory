@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Latency eval — uses retrieval_eval CORPUS/CASES (V1.2.2 ≤500ms)."""
+"""Latency eval over retrieval dataset (DemoEmbedding ≠ Kylin evidence)."""
 from __future__ import annotations
 
 import argparse
@@ -20,8 +20,9 @@ def run_latency_eval(*, split: str = "dev") -> dict[str, Any]:
         "p95_ms": lat["p95"],
         "mean_ms": lat["mean"],
         "budget_ms": 500,
-        "p95_within_budget": lat["p95"] <= 500,
-        "note": "Offline DemoEmbedding; measure Kylin Real on target machine.",
+        "p95_within_budget_demo_only": lat["p95"] <= 500,
+        "status": "baseline_not_competition_claim",
+        "note": "Must re-measure on Kylin Real embedding/vector for ≤500ms claim",
     }
 
 

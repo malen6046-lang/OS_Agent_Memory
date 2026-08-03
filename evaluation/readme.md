@@ -1,61 +1,43 @@
-六、evaluation/
-作用
+# evaluation/（Dataset V0.1，按 8_3 审核整改）
 
-存放自动评测程序。
+## 结构
 
-建议：
-
+```text
 evaluation/
-├── __init__.py
-├── run_all.py
-├── preference_eval.py
-├── retrieval_eval.py
-├── conflict_eval.py
-├── security_eval.py
-├── forget_eval.py
-├── latency_eval.py
-└── reports/
+├── dataset/                 # 数据与脚本分离
+│   ├── preference.jsonl
+│   ├── knowledge_corpus.jsonl
+│   ├── retrieval_queries.jsonl
+│   ├── conflict.jsonl
+│   ├── forget.jsonl
+│   └── security.jsonl
+├── loaders.py / metrics.py
+├── *_eval.py / run_all.py   # 评测逻辑（读 dataset/）
+└── reports/                 # 必须是目录
+```
 
-负责人：
-
-你主负责。
-
-算法负责人负责提供指标所需输出，并协助分析错误案例。
-
-最终至少计算：
-
-偏好提取准确率
-知识检索 Recall@K
-冲突分类正确率
-敏感信息识别准确率
-遗忘正确率
-平均延迟
-P95 延迟
-
-空的 `*_eval.py` 已填入 **Dataset V0.1 数据 + 可运行评测**。  
-数据在对应文件的 `CASES`（检索另有 `CORPUS`），为 **Python 字典列表**
-
-| 文件 | 数据 | 条数 |
-|------|------|------|
-| `preference_eval.py` | `CASES` | 50 |
-| `retrieval_eval.py` | `CORPUS` + `CASES` | 50+50 |
-| `conflict_eval.py` | `CASES` | 20 |
-| `forget_eval.py` | `CASES` | 20 |
-| `security_eval.py` | `CASES` | 10 |
-| `latency_eval.py` | 复用 retrieval | — |
-| `run_all.py` | 汇总入口 | — |
-
-运行环境（冻结基线）：**仅 CPython 3.12.x**，评测脚本与 `reports` 均为 Python 产出，无其它编程语言。
+## 运行（CPython 3.12）
 
 ```bash
-cd OS_Agent_Memory-main
+cd OS_Agent_Memory-evaluation-dataset
 python3.12 -m evaluation.run_all --split dev
-python3.12 -m evaluation.conflict_eval --split all
+python3.12 -m pytest tests/evaluation/test_run_all_smoke.py -q
 ```
 
-```python
-from evaluation.conflict_eval import CASES
-from evaluation.retrieval_eval import CORPUS, CASES as QUERIES
-```
+报告写入：
+- `evaluation/reports/v0.1_<split>.txt`（原始快照）
+- `evaluation/reports/evaluation_report.md`（正式报告）
+- `evaluation/reports/result.csv`（指标表）
 
-格式参考：LaMP / BEIR / SNLI·MNLI / TOFU；样本为银河麒麟原创场景。
+数据规范：`dataset/README.md`；复核：`复核记录.md`；端到端场景：`scenarios/`。  
+当前分数为 **baseline**，`status=baseline_not_competition_claim`，不可写成已达红线。
+
+## 8_3 关键点摘要
+
+- reports 目录 / `__init__.py` 命名
+- 数据外置 JSONL
+- 偏好完整字段 exact-match + micro/macro F1；临时指令 gold preferences=[]
+- Recall@K 真公式；稳定 SHA-256 id/embedding
+- 冲突 joint 主指标 + auto_apply_rate + 完整混淆矩阵
+- 遗忘 preview+内存 execute/残留；token 由 case 派生不抄答案
+- 安全核对 entity_type；标明小样本/baseline
