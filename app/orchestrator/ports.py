@@ -1,40 +1,34 @@
-"""Service ports anchored to the corresponding contracts.protocols modules."""
+"""Frozen contract exports consumed by the orchestration layer.
 
-from __future__ import annotations
+The contract modules are the sole authority. ``Any`` is used only while a
+planned protocol has not yet been published; no duplicate Protocol is defined
+inside ``app/orchestrator``.
+"""
 
-from typing import Any, Protocol
+from typing import Any
 
+from contracts.protocols import embedding as embedding_contract
 from contracts.protocols import forget as forget_contract
 from contracts.protocols import knowledge as knowledge_contract
 from contracts.protocols import preference as preference_contract
 from contracts.protocols import retrieval as retrieval_contract
+from contracts.protocols import safety as safety_contract
+from contracts.protocols import vector_store as vector_store_contract
 
 
-class PreferenceServicePort(Protocol):
-    async def extract(self, event: Any) -> Any: ...
-
-
-class KnowledgeServicePort(Protocol):
-    async def ingest(self, event: Any, preference_result: Any) -> Any: ...
-
-
-class RetrieverPort(Protocol):
-    async def search(self, request: Any) -> Any: ...
-
-
-class ForgetServicePort(Protocol):
-    async def preview(self, request: Any) -> Any: ...
-
-    async def execute(self, request: Any) -> Any: ...
-
-
-# The contract modules are the authority. The fallback ports keep this layer
-# usable while the currently empty protocol files are populated independently.
 PreferenceService = getattr(
-    preference_contract, "PreferenceService", PreferenceServicePort
+    preference_contract, "PreferenceService", Any
 )
-KnowledgeService = getattr(
-    knowledge_contract, "KnowledgeService", KnowledgeServicePort
+KnowledgeService = getattr(knowledge_contract, "KnowledgeService", Any)
+HybridRetriever = getattr(retrieval_contract, "HybridRetriever", Any)
+ForgetService = getattr(forget_contract, "ForgetService", Any)
+SafetyService = getattr(safety_contract, "SafetyService", Any)
+EmbeddingProvider = getattr(
+    embedding_contract, "EmbeddingProvider", Any
 )
-Retriever = getattr(retrieval_contract, "HybridRetriever", RetrieverPort)
-ForgetService = getattr(forget_contract, "ForgetService", ForgetServicePort)
+VectorStoreAdapter = getattr(
+    vector_store_contract, "VectorStoreAdapter", Any
+)
+
+# Backward-compatible name used by the existing dependency container.
+Retriever = HybridRetriever
