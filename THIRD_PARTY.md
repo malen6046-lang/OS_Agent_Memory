@@ -1,56 +1,4 @@
-十一、根目录文件
-THIRD_PARTY.md
-
-作用：
-
-记录引入的 GitHub 仓库和 SDK：
-
-仓库名称
-GitHub 地址
-Commit
-License
-使用文件
-修改内容
-负责人
-
-负责人：
-
-你维护，每个成员负责填写自己引入的项目。
-
-pyproject.toml
-
-作用：
-
-统一：
-
-Python 版本；
-项目名称；
-Python 依赖；
-pytest 配置；
-lint 配置；
-格式化规则。
-
-负责人：
-
-你／系统后端负责人。
-
-README.md
-
-作用：
-
-告诉任何新成员：
-
-项目是什么；
-如何安装；
-如何启动；
-如何测试；
-如何切换 fallback 和麒麟模式；
-项目目录是什么；
-已知问题有哪些。
-
-负责人：
-
-你。
+# THIRD_PARTY.md — 第三方依赖与开源模块声明
 
 ## FastAPI
 
@@ -111,3 +59,76 @@ README.md
 - Modified source: No
 - Project location: app/models/, app/repositories/
 - Maintainer: 平台与集成负责人
+ 平台与集成负责人
+
+
+## sentence-transformers
+
+- Repository: https://github.com/UKPLab/sentence-transformers
+- License: Apache-2.0
+- Usage: FallbackEmbeddingProvider 文本向量化
+- Integration type: Runtime dependency
+- Modified source: No
+- Project location: adapters/embedding/fallback_provider.py
+- Maintainer: 算法负责人
+
+## numpy
+
+- Repository: https://github.com/numpy/numpy
+- License: BSD-3-Clause
+- Usage: 向量余弦相似度计算 (MemoryVectorStore, FaissVectorStore)
+- Integration type: Runtime dependency
+- Modified source: No
+- Project location: adapters/vector_store/memory_vector_store.py, adapters/vector_store/faiss_vector_store.py
+- Maintainer: 算法负责人
+
+## FAISS
+
+- Repository: https://github.com/facebookresearch/faiss
+- License: MIT
+- Usage: FaissVectorStore fallback 向量检索 (可选依赖)
+- Integration type: Optional runtime dependency
+- Modified source: No
+- Project location: adapters/vector_store/faiss_vector_store.py
+- Maintainer: 算法负责人
+
+## BM25 (scorta/BM25 参考)
+
+- Repository: https://github.com/scorta/BM25
+- License: MIT
+- Usage: BM25 关键词评分算法 (从 C++ 移植为 Python)
+- Integration type: Algorithm reference, reimplemented
+- Modified source: Yes (ported to Python, fixed tokenizer bug)
+- Project location: modules/knowledge_retrieval/bm25.py
+- Maintainer: 算法负责人
+
+## memory_tier (dsco 参考)
+
+- Repository: https://github.com/arthurcolle/dsco
+- License: MIT
+- Usage: 三层记忆衰减算法 (从 C 移植为 Python)
+- Integration type: Algorithm reference, reimplemented
+- Modified source: Yes (ported to Python)
+- Project location: modules/knowledge_retrieval/memory_tier.py
+- Maintainer: 算法负责人
+
+## kylin-coreai-embedding (麒麟 SDK)
+
+- Source: kylin-coreai-embedding-openkylin-nile-sp2
+- License: GPLv3-or-later
+- Usage: KylinEmbeddingProvider 主线 (待麒麟目标机接入)
+- Integration type: System package (libkysdk-coreai-embedding.so)
+- Modified source: No
+- Project location: adapters/embedding/kylin_provider/ (待实现)
+- Maintainer: 算法负责人
+
+## libkysdk-vector-engine-client (麒麟 SDK)
+
+- Source: libkysdk-vector-engine-client-openkylin-nile-sp2
+- License: Apache-2.0 (修改自 Milvus C++ SDK)
+- Usage: KylinVectorStoreAdapter 主线 (待麒麟目标机接入)
+- Integration type: System package (libkysdk-vector-engine-client.so)
+- Modified source: No
+- Project location: adapters/vector_store/kylin_vector_store/ (待实现)
+- Maintainer: 算法负责人
+ main
