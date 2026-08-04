@@ -20,4 +20,7 @@ async def search_memory(
     request_id: str = Depends(get_request_id),
     service: MockService = Depends(get_mock_service),
 ) -> ApiResponse[dict[str, Any]]:
-    return success_response(request_id, await service.search_memory(search_request))
+    return success_response(
+        request_id,
+        await service.search_memory(search_request, request_id=request_id),
+    )

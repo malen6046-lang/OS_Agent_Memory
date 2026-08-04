@@ -2,13 +2,17 @@ import asyncio
 
 import pytest
 
-from app.core.config import ConfigManager, VectorStoreConfig
+from app.core.config import ConfigManager
 from app.dependencies import (
     FallbackEmbeddingProvider,
     FallbackVectorStoreAdapter,
+    MockAuditRepository,
     MockEmbeddingProvider,
+    MockEvaluationService,
     MockForgetService,
+    MockIdempotencyRepository,
     MockKnowledgeService,
+    MockMemoryRepository,
     MockPreferenceService,
     MockRetriever,
     MockSafetyService,
@@ -17,6 +21,12 @@ from app.dependencies import (
     ServiceStartupError,
     build_service_container,
     get_memory_orchestrator,
+)
+from contracts.schemas.provider import VectorStoreConfig
+from repositories import (
+    SQLiteAuditRepository,
+    SQLiteIdempotencyRepository,
+    SQLiteMemoryRepository,
 )
 
 
@@ -34,8 +44,15 @@ def test_mock_configuration_registers_every_required_singleton():
     assert isinstance(container.retriever, MockRetriever)
     assert isinstance(container.embedding_provider, MockEmbeddingProvider)
     assert isinstance(container.vector_store, MockVectorStoreAdapter)
+    assert isinstance(container.memory_repository, MockMemoryRepository)
+    assert isinstance(
+        container.idempotency_repository, MockIdempotencyRepository
+    )
+    assert isinstance(container.audit_repository, MockAuditRepository)
+    assert isinstance(container.evaluation_service, MockEvaluationService)
     assert container.retriever.embedding_provider is container.embedding_provider
     assert container.retriever.vector_store is container.vector_store
+    assert container.retriever.memory_repository is container.memory_repository
 
 
 def test_development_profile_selects_fallback_providers():
@@ -43,6 +60,12 @@ def test_development_profile_selects_fallback_providers():
 
     assert isinstance(container.embedding_provider, FallbackEmbeddingProvider)
     assert isinstance(container.vector_store, FallbackVectorStoreAdapter)
+    assert isinstance(container.memory_repository, SQLiteMemoryRepository)
+    assert isinstance(
+        container.idempotency_repository,
+        SQLiteIdempotencyRepository,
+    )
+    assert isinstance(container.audit_repository, SQLiteAuditRepository)
 
 
 def test_environment_can_switch_service_and_provider_configuration(
@@ -80,6 +103,18 @@ def test_real_mode_loads_each_explicitly_configured_factory():
             "retriever_implementation": (
                 "app.dependencies.mock_services:MockRetriever"
             ),
+            "memory_repository_implementation": (
+                "app.dependencies.mock_services:MockMemoryRepository"
+            ),
+            "idempotency_repository_implementation": (
+                "app.dependencies.mock_services:MockIdempotencyRepository"
+            ),
+            "audit_repository_implementation": (
+                "app.dependencies.mock_services:MockAuditRepository"
+            ),
+            "evaluation_implementation": (
+                "app.dependencies.mock_services:MockEvaluationService"
+            ),
         }
     )
 
@@ -93,6 +128,10 @@ def test_real_mode_loads_each_explicitly_configured_factory():
     assert isinstance(container.forget_service, MockForgetService)
     assert isinstance(container.knowledge_service, MockKnowledgeService)
     assert isinstance(container.hybrid_retriever, MockRetriever)
+    assert (
+        container.hybrid_retriever.memory_repository
+        is container.memory_repository
+    )
     assert container.vector_store_adapter is container.vector_store
 
 
@@ -141,7 +180,7 @@ def test_provider_lifecycle_uses_dependency_order_and_reverse_shutdown():
 
     class VectorSpy:
         def start(self, config):
-            assert config.provider == "mock"
+            assert config.provider == "memory"
             events.append("vector.start")
 
         def close(self):
@@ -155,7 +194,11 @@ def test_provider_lifecycle_uses_dependency_order_and_reverse_shutdown():
         safety_service=MockSafetyService(),
         embedding_provider=EmbeddingSpy(),
         vector_store=VectorSpy(),
-        vector_store_config=VectorStoreConfig(provider="mock"),
+        vector_store_config=VectorStoreConfig(
+            provider="memory",
+            collection_name="test",
+            expected_dimension=1,
+        ),
     )
 
     run(container.start())
@@ -195,7 +238,11 @@ def test_failed_vector_start_closes_already_started_embedding():
         MockForgetService(),
         embedding_provider=EmbeddingSpy(),
         vector_store=FailingVector(),
-        vector_store_config=VectorStoreConfig(provider="mock"),
+        vector_store_config=VectorStoreConfig(
+            provider="memory",
+            collection_name="test",
+            expected_dimension=1,
+        ),
     )
 
     with pytest.raises(ServiceStartupError, match="vector unavailable"):
@@ -217,3 +264,10 @@ def test_orchestrator_receives_container_singletons():
     assert orchestrator._knowledge_service is container.knowledge_service
     assert orchestrator._retriever is container.retriever
     assert orchestrator._forget_service is container.forget_service
+    assert orchestrator._repository is container.memory_repository
+    assert (
+        orchestrator._idempotency_repository
+        is container.idempotency_repository
+    )
+    assert orchestrator._audit_repository is container.audit_repository
+    assert orchestrator._evaluation_service is container.evaluation_service

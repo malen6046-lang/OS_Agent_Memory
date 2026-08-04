@@ -15,6 +15,7 @@ from app.core.config import ConfigManager
 from app.core.responses import error_response, new_request_id
 from app.dependencies import (
     OrchestratorApiService,
+    OrchestratorResponseError,
     build_service_container,
     get_memory_orchestrator,
 )
@@ -86,6 +87,33 @@ async def validation_exception_handler(
         details={"errors": jsonable_encoder(exc.errors())},
     )
     return JSONResponse(status_code=422, content=response.model_dump(mode="json"))
+
+
+@app.exception_handler(OrchestratorResponseError)
+async def orchestrator_exception_handler(
+    request: Request, exc: OrchestratorResponseError
+) -> JSONResponse:
+    status_code = {
+        "VALIDATION_ERROR": 422,
+        "SENSITIVE_CONTENT_BLOCKED": 422,
+        "IDEMPOTENCY_CONFLICT": 409,
+        "CONFIRMATION_EXPIRED": 410,
+        "SEARCH_TIMEOUT": 504,
+        "DEPENDENCY_UNAVAILABLE": 503,
+        "VECTOR_PROVIDER_UNAVAILABLE": 503,
+        "EMBEDDING_PROVIDER_UNAVAILABLE": 503,
+    }.get(exc.code, 500)
+    response = error_response(
+        request_id=_request_id(request),
+        code=exc.code,
+        message=exc.message,
+        details=exc.details,
+        retryable=exc.retryable,
+    )
+    return JSONResponse(
+        status_code=status_code,
+        content=response.model_dump(mode="json"),
+    )
 
 
 @app.exception_handler(HTTPException)

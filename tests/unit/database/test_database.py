@@ -1,4 +1,5 @@
 from pathlib import Path
+import sqlite3
 
 import pytest
 from pydantic import BaseModel
@@ -170,3 +171,45 @@ def test_orm_models_are_separate_from_pydantic_schemas():
 def test_init_db_rejects_non_sqlite_url():
     with pytest.raises(ValueError, match="only SQLite"):
         init_db("postgresql://localhost/memory")
+
+
+def test_init_db_migrates_legacy_memory_table_without_data_loss(tmp_path):
+    database_path = tmp_path / "legacy.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE memory_record (
+                memory_id VARCHAR PRIMARY KEY NOT NULL,
+                user_id VARCHAR NOT NULL,
+                memory_kind VARCHAR NOT NULL,
+                content_text TEXT NOT NULL,
+                status VARCHAR NOT NULL,
+                confidence FLOAT NOT NULL,
+                revision INTEGER NOT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO memory_record VALUES (
+                'mem_legacy', 'usr_1', 'semantic', 'legacy', 'active',
+                0.8, 1, '2026-08-03T00:00:00+00:00',
+                '2026-08-03T00:00:00+00:00'
+            )
+            """
+        )
+
+    engine = init_db(database_path)
+    columns = {
+        column["name"] for column in inspect(engine).get_columns("memory_record")
+    }
+
+    assert {"vector_pk", "record_json"} <= columns
+    with get_session() as session:
+        row = session.get(MemoryRecordModel, "mem_legacy")
+        assert row is not None
+        assert row.content_text == "legacy"
+
+    engine.dispose()

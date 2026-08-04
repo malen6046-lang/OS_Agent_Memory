@@ -21,5 +21,8 @@ async def run_evaluation(
     service: MockService = Depends(get_mock_service),
 ) -> ApiResponse[dict[str, Any]]:
     return success_response(
-        request_id, await service.run_evaluation(evaluation_request)
+        request_id,
+        await service.run_evaluation(
+            evaluation_request, request_id=request_id
+        ),
     )

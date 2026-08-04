@@ -24,7 +24,7 @@ class MockService:
         }
 
     async def search_memory(
-        self, request: MemorySearchRequest
+        self, request: MemorySearchRequest, request_id: str | None = None
     ) -> dict[str, object]:
         return {
             "user_id": request.user_id,
@@ -35,7 +35,7 @@ class MockService:
         }
 
     async def preview_forget(
-        self, request: ForgetPreviewRequest
+        self, request: ForgetPreviewRequest, request_id: str | None = None
     ) -> dict[str, object]:
         return {
             "plan_id": f"forget_{uuid4().hex}",
@@ -46,7 +46,7 @@ class MockService:
         }
 
     async def execute_forget(
-        self, request: ForgetExecuteRequest
+        self, request: ForgetExecuteRequest, request_id: str | None = None
     ) -> dict[str, object]:
         return {
             "plan_id": request.plan_id,
@@ -56,7 +56,7 @@ class MockService:
         }
 
     async def run_evaluation(
-        self, request: EvaluationRunRequest
+        self, request: EvaluationRunRequest, request_id: str | None = None
     ) -> dict[str, object]:
         return {
             "run_id": f"run_{uuid4().hex}",
