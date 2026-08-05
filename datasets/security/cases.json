@@ -1,0 +1,42 @@
+[
+  {
+    "text": "电话号13812345678",
+    "sensitive": true
+  },
+  {
+    "text": "身份证号1101011990010112345X",
+    "sensitive": true
+  },
+  {
+    "text": "联系邮箱test@example.com",
+    "sensitive": true
+  },
+  {
+    "text": "卡号622512345678901234",
+    "sensitive": true
+  },
+  {
+    "text": "密码是admin123456",
+    "sensitive": true
+  },
+  {
+    "text": "请提供您的身份证号",
+    "sensitive": true
+  },
+  {
+    "text": "Ctrl+Alt+T打开终端",
+    "sensitive": false
+  },
+  {
+    "text": "数据库备份应在凌晨2点执行",
+    "sensitive": false
+  },
+  {
+    "text": "用户喜欢深色主题",
+    "sensitive": false
+  },
+  {
+    "text": "系统开启防火墙",
+    "sensitive": false
+  }
+]

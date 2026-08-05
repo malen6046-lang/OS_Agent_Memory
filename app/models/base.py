@@ -21,7 +21,7 @@ def utc_now() -> datetime:
 
 
 class UTCDateTime(TypeDecorator[datetime]):
-    """SQLite以ISO 8601 UTC文本保存时区，读取时恢复aware datetime。"""
+    """Store timezone-aware datetimes as UTC ISO 8601 text in SQLite."""
 
     impl = String(35)
     cache_ok = True

@@ -1,8 +1,6 @@
-from datetime import datetime, timezone
-
 import pytest
+from datetime import datetime, timezone
 from pydantic import ValidationError
-
 from contracts.schemas.memory import MemoryRecord
 
 
@@ -30,7 +28,6 @@ def valid_memory_data():
 
 def test_memory_record_accepts_valid_input():
     record = MemoryRecord.model_validate(valid_memory_data())
-
     assert record.memory_id == "mem_123"
     assert record.confidence == pytest.approx(0.91)
     assert record.importance == pytest.approx(0.8)
@@ -44,9 +41,7 @@ def test_memory_record_accepts_score_boundaries(value):
     data["confidence"] = value
     data["importance"] = value
     data["revision"] = 1
-
     record = MemoryRecord.model_validate(data)
-
     assert record.confidence == value
     assert record.importance == value
     assert record.revision == 1
@@ -56,7 +51,6 @@ def test_memory_record_accepts_score_boundaries(value):
 def test_memory_record_rejects_empty_ids(field):
     data = valid_memory_data()
     data[field] = " "
-
     with pytest.raises(ValidationError):
         MemoryRecord.model_validate(data)
 
@@ -65,7 +59,6 @@ def test_memory_record_rejects_empty_ids(field):
 def test_memory_record_rejects_empty_ids_in_lists(field):
     data = valid_memory_data()
     data[field] = [""]
-
     with pytest.raises(ValidationError):
         MemoryRecord.model_validate(data)
 
@@ -74,7 +67,6 @@ def test_memory_record_rejects_empty_ids_in_lists(field):
 def test_memory_record_rejects_naive_datetimes(field):
     data = valid_memory_data()
     data[field] = datetime(2026, 7, 28, 15, 30)
-
     with pytest.raises(ValidationError):
         MemoryRecord.model_validate(data)
 
@@ -84,7 +76,6 @@ def test_memory_record_rejects_naive_datetimes(field):
 def test_memory_record_rejects_scores_outside_unit_interval(field, value):
     data = valid_memory_data()
     data[field] = value
-
     with pytest.raises(ValidationError):
         MemoryRecord.model_validate(data)
 
@@ -93,7 +84,6 @@ def test_memory_record_rejects_scores_outside_unit_interval(field, value):
 def test_memory_record_rejects_revision_below_one(revision):
     data = valid_memory_data()
     data["revision"] = revision
-
     with pytest.raises(ValidationError):
         MemoryRecord.model_validate(data)
 
@@ -102,7 +92,6 @@ def test_memory_record_rejects_revision_below_one(revision):
 def test_memory_record_rejects_non_dict_json_fields(field):
     data = valid_memory_data()
     data[field] = ["not", "a", "dict"]
-
     with pytest.raises(ValidationError):
         MemoryRecord.model_validate(data)
 
@@ -111,7 +100,6 @@ def test_memory_record_rejects_non_dict_json_fields(field):
 def test_memory_record_rejects_non_json_values(field):
     data = valid_memory_data()
     data[field] = {"bad": object()}
-
     with pytest.raises(ValidationError):
         MemoryRecord.model_validate(data)
 
@@ -127,6 +115,5 @@ def test_memory_record_rejects_non_json_values(field):
 def test_memory_record_rejects_unknown_enum_values(field, value):
     data = valid_memory_data()
     data[field] = value
-
     with pytest.raises(ValidationError):
         MemoryRecord.model_validate(data)

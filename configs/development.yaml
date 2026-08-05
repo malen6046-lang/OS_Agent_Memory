@@ -1,0 +1,8 @@
+services:
+  mode: real
+
+embedding:
+  provider: mock
+
+vector_store:
+  provider: memory

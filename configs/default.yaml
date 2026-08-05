@@ -1,0 +1,26 @@
+app:
+  name: os-agent-memory
+  version: 1.0.0
+
+
+storage:
+  data_dir: ./data
+  sqlite_file: memory.db
+
+
+embedding:
+  provider: mock
+  model_name: default
+
+
+vector_store:
+  provider: memory
+
+
+retrieval:
+  top_k_default: 5
+  candidate_k: 30
+
+
+logging:
+  level: INFO

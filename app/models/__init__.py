@@ -1,4 +1,6 @@
-from app.models.base import Base, UTCDateTime, utc_now
+"""SQLAlchemy ORM exports, separate from Pydantic contracts."""
+
+from app.models.base import Base, TimestampMixin, UTCDateTime, utc_now
 from app.models.entities import (
     AuditLogModel,
     ConflictModel,
@@ -16,20 +18,21 @@ from app.models.entities import (
 )
 
 __all__ = [
+    "AuditLogModel",
     "Base",
-    "UTCDateTime",
-    "utc_now",
+    "ConflictModel",
+    "EvaluationRunModel",
+    "ForgetAuditModel",
+    "IdempotencyRecordModel",
+    "KnowledgeModel",
+    "KnowledgeRelationModel",
+    "KnowledgeVersionModel",
     "MemoryModel",
+    "MemoryTransitionModel",
     "PreferenceModel",
     "PreferenceVersionModel",
-    "KnowledgeModel",
-    "KnowledgeVersionModel",
-    "KnowledgeRelationModel",
-    "ConflictModel",
-    "ForgetAuditModel",
-    "MemoryTransitionModel",
-    "EvaluationRunModel",
-    "IdempotencyRecordModel",
-    "AuditLogModel",
+    "TimestampMixin",
+    "UTCDateTime",
     "VectorMappingModel",
+    "utc_now",
 ]

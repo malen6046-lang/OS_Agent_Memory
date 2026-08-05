@@ -1,0 +1,77 @@
+[
+  {
+    "query": "怎么打开终端",
+    "gold_doc_id": "k01",
+    "user_id": "u1"
+  },
+  {
+    "query": "深色主题怎么设置",
+    "gold_doc_id": "k02",
+    "user_id": "u1"
+  },
+  {
+    "query": "安装软件用什么",
+    "gold_doc_id": "k03",
+    "user_id": "u1"
+  },
+  {
+    "query": "数据库备份时间",
+    "gold_doc_id": "k04",
+    "user_id": "u1"
+  },
+  {
+    "query": "Python开发环境怎么建",
+    "gold_doc_id": "k05",
+    "user_id": "u1"
+  },
+  {
+    "query": "分辨率怎么调",
+    "gold_doc_id": "k06",
+    "user_id": "u1"
+  },
+  {
+    "query": "用户喜欢什么展示格式",
+    "gold_doc_id": "k07",
+    "user_id": "u1"
+  },
+  {
+    "query": "文件管理器快捷键",
+    "gold_doc_id": "k08",
+    "user_id": "u1"
+  },
+  {
+    "query": "防火墙怎么管理",
+    "gold_doc_id": "k11",
+    "user_id": "u1"
+  },
+  {
+    "query": "SSH怎么设置安全连接",
+    "gold_doc_id": "k12",
+    "user_id": "u1"
+  },
+  {
+    "query": "怎么切换桌面",
+    "gold_doc_id": "k13",
+    "user_id": "u1"
+  },
+  {
+    "query": "代理怎么配",
+    "gold_doc_id": "k14",
+    "user_id": "u1"
+  },
+  {
+    "query": "日志怎么看",
+    "gold_doc_id": "k17",
+    "user_id": "u1"
+  },
+  {
+    "query": "怎么定时关机",
+    "gold_doc_id": "k18",
+    "user_id": "u1"
+  },
+  {
+    "query": "备份怎么设置",
+    "gold_doc_id": "k20",
+    "user_id": "u1"
+  }
+]
