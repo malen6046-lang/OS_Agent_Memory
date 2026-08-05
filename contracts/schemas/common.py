@@ -1,52 +1,43 @@
-"""Shared schema types fixed by Module Interface Plan V1.2."""
+from pydantic import AwareDatetime, Field, model_validator
 
-from enum import Enum
-from typing import Annotated
-
-from pydantic import StringConstraints
-
-
-NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-
-
-class Source(str, Enum):
-    TOOL_RESULT = "tool_result"
-    USER_BEHAVIOR = "user_behavior"
-    MANUAL_CONFIG = "manual_config"
-    CROSS_SCENE = "cross_scene"
+from contracts.schemas.base import CONTRACT_VERSION, ContractModel, JsonObject, NonBlankStr
+from contracts.schemas.enums import (
+    MemoryKind,
+    MemoryStatus,
+    MemorySubtype,
+    PreferencePolarity,
+    PreferenceScope,
+    Source,
+)
 
 
-class MemoryKind(str, Enum):
-    PREFERENCE = "preference"
-    SEMANTIC = "semantic"
-    EPISODIC = "episodic"
-    PROCEDURAL = "procedural"
+class Envelope(ContractModel):
+    contract_version: str = Field(default=CONTRACT_VERSION, pattern=r"^1\.0$")
+    request_id: NonBlankStr
+    idempotency_key: NonBlankStr
+    user_id: NonBlankStr
+    session_id: NonBlankStr | None = None
+    scene: NonBlankStr
+    source: Source
+    source_event_id: NonBlankStr
+    occurred_at: AwareDatetime
+    payload: JsonObject
 
 
-class MemorySubtype(str, Enum):
-    OUTPUT_STYLE = "output_style"
-    OPERATION_HABIT = "operation_habit"
-    SECURITY_POLICY = "security_policy"
-    WORKFLOW = "workflow"
-    CASE = "case"
-    TEMPLATE = "template"
-    FACT = "fact"
+class WriteContext(ContractModel):
+    request_id: NonBlankStr
+    idempotency_key: NonBlankStr
+    user_id: NonBlankStr
+    source_event_id: NonBlankStr
 
 
-class MemoryStatus(str, Enum):
-    ACTIVE = "active"
-    SUPERSEDED = "superseded"
-    TOMBSTONED = "tombstoned"
-    EXPIRED = "expired"
-    PENDING_REVIEW = "pending_review"
+class EventBatch(ContractModel):
+    events: list[Envelope] = Field(min_length=1)
 
-
-class PreferenceScope(str, Enum):
-    GLOBAL = "global"
-    SCENE = "scene"
-    TOOL = "tool"
-
-
-class PreferencePolarity(str, Enum):
-    POSITIVE = "positive"
-    NEGATIVE = "negative"
+    @model_validator(mode="after")
+    def one_request_context(self) -> "EventBatch":
+        if len({event.request_id for event in self.events}) != 1:
+            raise ValueError("all events must use the same request_id")
+        if len({event.user_id for event in self.events}) != 1:
+            raise ValueError("all events must use the same user_id")
+        return self

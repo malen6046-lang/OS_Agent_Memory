@@ -1,6 +1,5 @@
 """Dependency assembly for application services."""
 
-from .api_service import OrchestratorApiService
 from .errors import ServiceLifecycleError, ServiceStartupError
 from .mock_services import (
     FallbackEmbeddingProvider,
@@ -30,7 +29,6 @@ __all__ = [
     "MockRetriever",
     "MockSafetyService",
     "MockVectorStoreAdapter",
-    "OrchestratorApiService",
     "ServiceContainer",
     "ServiceLifecycleError",
     "ServiceStartupError",

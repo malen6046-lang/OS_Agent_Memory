@@ -4,12 +4,12 @@ from time import perf_counter
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
-from app.core.dependencies import get_platform_service
+from app.core.dependencies import get_api_service
 from app.core.request_ids import validate_request_id
 from app.core.responses import success
-from app.services.platform import PlatformService
+from app.services.platform import MemoryApiService
 from contracts.schemas import (
     ConflictResolveRequest,
     ConflictResult,
@@ -25,6 +25,7 @@ from contracts.schemas import (
     HealthQuery,
     KnowledgeIngestRequest,
     KnowledgeIngestResult,
+    MemoryResponse,
     PreferenceExtractRequest,
     PreferenceExtractResult,
     PreferenceHistoryQuery,
@@ -39,7 +40,7 @@ from contracts.schemas import (
 )
 
 router = APIRouter()
-Service = Annotated[PlatformService, Depends(get_platform_service)]
+Service = Annotated[MemoryApiService, Depends(get_api_service)]
 RequestIdHeader = Annotated[str | None, Header(alias="X-Request-ID")]
 
 
@@ -86,6 +87,10 @@ async def get_preferences(
     "/preferences/{key}/history",
     response_model=SuccessResponse[PreferenceListResult],
 )
+@router.get(
+    "/preferences/{key}/versions",
+    response_model=SuccessResponse[PreferenceListResult],
+)
 async def preference_history(
     key: str,
     query: Annotated[PreferenceHistoryQuery, Depends()],
@@ -102,6 +107,10 @@ async def preference_history(
     "/knowledge/ingest",
     response_model=SuccessResponse[KnowledgeIngestResult],
 )
+@router.post(
+    "/knowledge",
+    response_model=SuccessResponse[KnowledgeIngestResult],
+)
 async def ingest_knowledge(
     body: KnowledgeIngestRequest,
     service: Service,
@@ -110,6 +119,23 @@ async def ingest_knowledge(
     started = perf_counter()
     request_id = validate_request_id(x_request_id, body.request_id)
     data = await service.ingest_knowledge(body)
+    return success(request_id=request_id, data=data, started_at=started)
+
+
+@router.post(
+    "/knowledge/conflicts/resolve",
+    response_model=SuccessResponse[ConflictResult],
+)
+async def resolve_knowledge_conflict(
+    body: ConflictResolveRequest,
+    service: Service,
+    conflict_id: Annotated[str, Query(min_length=1)],
+    x_request_id: RequestIdHeader = None,
+):
+    """Compatibility endpoint; conflict_id remains explicit as a query key."""
+    started = perf_counter()
+    request_id = validate_request_id(x_request_id, body.request_id)
+    data = await service.resolve_conflict(conflict_id, body)
     return success(request_id=request_id, data=data, started_at=started)
 
 
@@ -129,6 +155,39 @@ async def search_memory(
         degraded=True,
         provider=Provider.DETERMINISTIC_TEST,
     )
+
+
+@router.get(
+    "/memory/transitions",
+    response_model=SuccessResponse[list[dict]],
+)
+async def list_memory_transitions(
+    query: Annotated[PreferenceHistoryQuery, Depends()],
+    service: Service,
+    x_request_id: RequestIdHeader = None,
+):
+    started = perf_counter()
+    request_id = validate_request_id(x_request_id, query.request_id)
+    data = await service.memory_transitions(query.user_id)
+    return success(request_id=request_id, data=data, started_at=started)
+
+
+@router.get(
+    "/memory/{memory_id}",
+    response_model=SuccessResponse[MemoryResponse],
+)
+async def get_memory(
+    memory_id: str,
+    query: Annotated[PreferenceHistoryQuery, Depends()],
+    service: Service,
+    x_request_id: RequestIdHeader = None,
+):
+    started = perf_counter()
+    request_id = validate_request_id(x_request_id, query.request_id)
+    data = await service.get_memory(query.user_id, memory_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="memory not found")
+    return success(request_id=request_id, data=data, started_at=started)
 
 
 @router.post(

@@ -13,12 +13,12 @@ from starlette.exceptions import HTTPException
 
 from app.api.v1.router import api_router
 from app.core.config import ConfigManager
-from app.core.database import init_db
-from app.core.dependencies import get_repository
+from app.core.database import create_session_factory, init_db
 from app.core.errors import AppError
 from app.core.responses import error, new_request_id
 from app.dependencies import build_service_container, get_memory_orchestrator
 from app.services.platform import MemoryApiService
+from app.repositories import SqlAlchemyPlatformRepository
 from contracts.schemas import ErrorCode
 
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -30,10 +30,13 @@ async def lifespan(application: FastAPI):
 
     config = ConfigManager().load()
     database_engine = init_db()
+    repository = SqlAlchemyPlatformRepository(
+        create_session_factory(database_engine)
+    )
     container = build_service_container(config)
     orchestrator = get_memory_orchestrator(container)
     api_service = MemoryApiService(
-        repository=get_repository(),
+        repository=repository,
         orchestrator=orchestrator,
         service_container=container,
     )

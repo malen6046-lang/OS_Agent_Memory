@@ -12,6 +12,11 @@ from modules.knowledge_retrieval.async_adapter import (
 )
 
 
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
 def _build():
     emb = MockEmbeddingProvider(dim=16)
     emb.start()
@@ -39,7 +44,7 @@ class TestNormalizeRequest:
 
 
 class TestAsyncKnowledgeService:
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_ingest(self):
         _, _, _, ks, _ = _build()
         adapter = AsyncKnowledgeServiceAdapter(ks)
@@ -53,7 +58,7 @@ class TestAsyncKnowledgeService:
         assert len(result["items"]) == 1
         assert result["items"][0]["status"] in ("inserted", "conflict")
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_ingest_records_list(self):
         _, _, _, ks, _ = _build()
         adapter = AsyncKnowledgeServiceAdapter(ks)
@@ -71,7 +76,7 @@ class TestAsyncKnowledgeService:
 
 
 class TestAsyncHybridRetriever:
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_search(self):
         emb, vs, bm, _, hr = _build()
         bm.index([{"doc_id": "d0", "text": "麒麟系统终端快捷键", "user_id": "u1", "status": "active"}])

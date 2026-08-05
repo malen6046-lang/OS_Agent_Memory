@@ -2,6 +2,8 @@
 
 ## FastAPI
 
+- Locked version: 0.140.13
+
 - Repository: https://github.com/fastapi/fastapi
 - Usage: REST API framework and OpenAPI generation
 - Integration type: Runtime dependency
@@ -9,7 +11,29 @@
 - Project location: app/main.py, app/api/
 - Maintainer: 平台与集成负责人
 
+## Starlette
+
+- Repository: https://github.com/Kludex/starlette
+- Locked version: 1.3.1
+- Usage: ASGI runtime used by FastAPI
+- Integration type: Runtime dependency
+- Modified source: No
+- Project location: app/main.py
+- Maintainer: Platform and integration owner
+
+## HTTPX
+
+- Repository: https://github.com/encode/httpx
+- Locked version: 0.28.1
+- Usage: ASGI HTTP integration tests without deprecated TestClient wrappers
+- Integration type: Test dependency
+- Modified source: No
+- Project location: tests/asgi_client.py, tests/api/, tests/integration/
+- Maintainer: Platform and integration owner
+
 ## Pydantic
+
+- Locked version: 2.13.4
 
 - Repository: https://github.com/pydantic/pydantic
 - Usage: Contract validation and serialization
@@ -19,6 +43,8 @@
 - Maintainer: 平台与集成负责人
 
 ## SQLAlchemy
+
+- Locked version: 2.0.51
 
 - Repository: https://github.com/sqlalchemy/sqlalchemy
 - Usage: SQLite ORM and transaction management

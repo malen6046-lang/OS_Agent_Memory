@@ -15,13 +15,21 @@ from typing import Any
 def normalize_request(request: Any) -> dict:
     """Convert Pydantic object or dict to plain dict for sync algorithm."""
     if hasattr(request, "model_dump"):
-        return request.model_dump()
+        # Algorithm metadata is persisted in vector stores and returned through
+        # contracts, so it must remain JSON serializable at this boundary.
+        try:
+            return request.model_dump(mode="json")
+        except TypeError:
+            return request.model_dump()
     if hasattr(request, "dict"):
         return request.dict()
     if isinstance(request, dict) and "payload" in request:
         payload = request["payload"]
         if hasattr(payload, "model_dump"):
-            return payload.model_dump()
+            try:
+                return payload.model_dump(mode="json")
+            except TypeError:
+                return payload.model_dump()
         if isinstance(payload, dict):
             return payload
     return dict(request) if isinstance(request, dict) else request
@@ -51,7 +59,13 @@ class AsyncHybridRetrieverAdapter:
 
 def _extract_records(event: Any) -> list[dict]:
     """Extract knowledge draft records from an Envelope-like event."""
-    event = normalize_request(event)
+    if hasattr(event, "model_dump"):
+        try:
+            event = event.model_dump(mode="json")
+        except TypeError:
+            event = event.model_dump()
+    elif not isinstance(event, dict):
+        event = normalize_request(event)
     payload = event.get("payload", event)
     if isinstance(payload, dict) and "records" in payload:
         records = payload["records"]

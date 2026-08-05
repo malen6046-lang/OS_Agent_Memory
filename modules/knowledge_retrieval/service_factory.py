@@ -4,7 +4,7 @@ Usage (from app/dependencies/services.py):
     from modules.knowledge_retrieval.service_factory import build_knowledge_retrieval_services
     services = build_knowledge_retrieval_services(config)
 
-Returns dict with: embedding_provider, vector_store, bm25, knowledge_service, hybrid_retriever
+Returns all knowledge, retrieval, preference, safety, and forget services.
 """
 from __future__ import annotations
 
@@ -64,12 +64,19 @@ def build_knowledge_retrieval_services(config: dict | object) -> dict[str, Any]:
     from modules.knowledge_retrieval.hybrid_retriever import HybridRetriever
     hr = HybridRetriever(emb, vs, bm)
 
+    from modules.preference_safety.forget_service import ForgetService
+    from modules.preference_safety.preference_service import PreferenceService
+    from modules.preference_safety.safety_service import SafetyService
+
     return {
         "embedding_provider": emb,
         "vector_store": vs,
         "bm25": bm,
         "knowledge_service": ks,
         "hybrid_retriever": hr,
+        "preference_service": PreferenceService(),
+        "safety_service": SafetyService(),
+        "forget_service": ForgetService(),
     }
 
 

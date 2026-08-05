@@ -73,28 +73,28 @@ def test_all_required_tables_and_indexes_exist(database):
     engine, _ = database
     inspector = inspect(engine)
     expected_tables = {
-        "memories",
-        "preferences",
+        "memory_record",
+        "preference_current",
         "preference_versions",
         "knowledge",
         "knowledge_versions",
         "knowledge_relations",
-        "conflicts",
+        "conflict",
         "forget_audits",
         "memory_transitions",
-        "evaluation_runs",
-        "idempotency_records",
-        "audit_logs",
+        "evaluation_run",
+        "idempotency_record",
+        "audit_log",
         "vector_mappings",
     }
     assert set(inspector.get_table_names()) == expected_tables
 
-    memory_indexes = {item["name"] for item in inspector.get_indexes("memories")}
+    memory_indexes = {item["name"] for item in inspector.get_indexes("memory_record")}
     assert {
-        "ix_memories_user_id",
-        "ix_memories_memory_type",
-        "ix_memories_status",
-        "ix_memories_updated_at",
+        "ix_memory_record_user_id",
+        "ix_memory_record_memory_type",
+        "ix_memory_record_status",
+        "ix_memory_record_updated_at",
     }.issubset(memory_indexes)
 
 

@@ -112,9 +112,9 @@ def test_contract_version_is_frozen():
         "occurred_at": NOW.isoformat(),
         "payload": {},
     }
-    assert Envelope.model_validate(base).contract_version == "1.0.0"
+    assert Envelope.model_validate(base).contract_version == "1.0"
     with pytest.raises(ValidationError):
-        Envelope.model_validate({**base, "contract_version": "1.0"})
+        Envelope.model_validate({**base, "contract_version": "1.0.0"})
 
 
 def test_memory_create_rejects_platform_fields():

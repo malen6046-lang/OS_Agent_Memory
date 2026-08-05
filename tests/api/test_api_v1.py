@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 def event(request_id: str = "req_test") -> dict:
     return {
-        "contract_version": "1.0.0",
+        "contract_version": "1.0",
         "request_id": request_id,
         "idempotency_key": "idem_test",
         "user_id": "usr_test",
@@ -167,7 +167,7 @@ def test_health(client):
     response = client.get("/api/v1/health")
     assert_success(response)
     data = response.json()["data"]
-    assert data["contract_version"] == "1.0.0"
+    assert data["contract_version"] == "1.0"
     assert set(data) == {
         "status",
         "service_version",

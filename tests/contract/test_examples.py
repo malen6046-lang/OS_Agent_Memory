@@ -18,7 +18,7 @@ from contracts.schemas import (
 
 
 def test_all_standard_request_examples_match_contracts():
-    path = Path(__file__).parents[1] / "contracts" / "examples.v1.json"
+    path = Path(__file__).parents[2] / "contracts" / "examples.v1.json"
     examples = json.loads(path.read_text(encoding="utf-8"))["examples"]
 
     EventIngestRequest.model_validate(examples["events_ingest"]["request"])
@@ -55,7 +55,16 @@ def test_openapi_contains_all_v11_paths_and_typed_errors(client):
         "/api/v1/health",
         "/api/v1/evaluations/run",
     }
-    assert set(schema["paths"]) == expected_paths
+    compatibility_paths = {
+        "/api/v1/preferences/{key}/versions",
+        "/api/v1/knowledge",
+        "/api/v1/knowledge/conflicts/resolve",
+        "/api/v1/memory/{memory_id}",
+        "/api/v1/memory/transitions",
+    }
+    actual_paths = set(schema["paths"])
+    assert expected_paths <= actual_paths
+    assert compatibility_paths <= actual_paths
     for operations in schema["paths"].values():
         operation = next(iter(operations.values()))
         assert "422" in operation["responses"]

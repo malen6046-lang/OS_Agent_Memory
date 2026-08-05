@@ -15,6 +15,18 @@ from app.orchestrator.ports import (
     PreferenceService,
     Retriever,
 )
+from modules.knowledge_retrieval.async_adapter import (
+    AsyncHybridRetrieverAdapter,
+    AsyncKnowledgeServiceAdapter,
+)
+from modules.knowledge_retrieval.service_factory import (
+    build_knowledge_retrieval_services,
+)
+from modules.preference_safety.async_adapter import (
+    AsyncForgetServiceAdapter,
+    AsyncPreferenceServiceAdapter,
+    AsyncSafetyServiceAdapter,
+)
 
 from .errors import ServiceLifecycleError, ServiceStartupError
 from .mock_services import (
@@ -108,7 +120,13 @@ def build_service_container(config: AppConfig) -> ServiceContainer:
         safety_service = MockSafetyService()
         forget_service = MockForgetService()
         knowledge_service = MockKnowledgeService()
-    else:
+        embedding_provider = _build_embedding_provider(config)
+        vector_store = _build_vector_store(config)
+        retriever = MockRetriever(
+            embedding_provider=embedding_provider,
+            vector_store=vector_store,
+        )
+    elif _has_explicit_service_implementations(config):
         preference_service = _load_required(
             "PreferenceService",
             config.services.preference_implementation,
@@ -129,16 +147,8 @@ def build_service_container(config: AppConfig) -> ServiceContainer:
             config.services.knowledge_implementation,
             config=config,
         )
-
-    embedding_provider = _build_embedding_provider(config)
-    vector_store = _build_vector_store(config)
-
-    if mode == "mock":
-        retriever = MockRetriever(
-            embedding_provider=embedding_provider,
-            vector_store=vector_store,
-        )
-    else:
+        embedding_provider = _build_embedding_provider(config)
+        vector_store = _build_vector_store(config)
         retriever = _load_required(
             "HybridRetriever",
             config.services.retriever_implementation,
@@ -146,6 +156,24 @@ def build_service_container(config: AppConfig) -> ServiceContainer:
             vector_store=vector_store,
             config=config.retrieval,
             app_config=config,
+        )
+    else:
+        algorithm = build_knowledge_retrieval_services(config)
+        embedding_provider = algorithm["embedding_provider"]
+        vector_store = algorithm["vector_store"]
+        knowledge_service = AsyncKnowledgeServiceAdapter(
+            algorithm["knowledge_service"]
+        )
+        retriever = AsyncHybridRetrieverAdapter(algorithm["hybrid_retriever"])
+        preference_service = AsyncPreferenceServiceAdapter(
+            algorithm["preference_service"]
+        )
+        safety_service = AsyncSafetyServiceAdapter(algorithm["safety_service"])
+        forget_service = AsyncForgetServiceAdapter(
+            algorithm["forget_service"],
+            retriever=algorithm["hybrid_retriever"],
+            vector_store=vector_store,
+            metadata_store=algorithm["knowledge_service"]._meta,
         )
 
     return ServiceContainer(
@@ -158,6 +186,19 @@ def build_service_container(config: AppConfig) -> ServiceContainer:
         retriever=retriever,
         vector_store_config=config.vector_store,
         mode=mode,
+    )
+
+
+def _has_explicit_service_implementations(config: AppConfig) -> bool:
+    services = config.services
+    return any(
+        (
+            services.preference_implementation,
+            services.safety_implementation,
+            services.forget_implementation,
+            services.knowledge_implementation,
+            services.retriever_implementation,
+        )
     )
 
 

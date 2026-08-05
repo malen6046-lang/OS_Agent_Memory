@@ -29,7 +29,7 @@ class MockKnowledgeService:
         self.calls: list[tuple[str, Any, Any]] = []
 
     async def ingest(
-        self, event: Any, preference_result: Any
+        self, event: Any, preference_result: Any = None
     ) -> dict[str, Any]:
         self.calls.append(("ingest", event, preference_result))
         return {"records": [], "mock": True}

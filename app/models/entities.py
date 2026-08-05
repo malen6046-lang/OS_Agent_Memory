@@ -45,7 +45,7 @@ def enum_column(enum_class: type, length: int = 32) -> SAEnum:
 
 
 class MemoryModel(TimestampMixin, Base):
-    __tablename__ = "memories"
+    __tablename__ = "memory_record"
     __table_args__ = (
         CheckConstraint(
             "confidence >= 0.0 AND confidence <= 1.0",
@@ -56,11 +56,11 @@ class MemoryModel(TimestampMixin, Base):
             name="importance_range",
         ),
         CheckConstraint("revision >= 1", name="revision_positive"),
-        Index("ix_memories_user_id", "user_id"),
-        Index("ix_memories_memory_type", "memory_type"),
-        Index("ix_memories_status", "status"),
-        Index("ix_memories_updated_at", "updated_at"),
-        Index("ix_memories_user_status", "user_id", "status"),
+        Index("ix_memory_record_user_id", "user_id"),
+        Index("ix_memory_record_memory_type", "memory_type"),
+        Index("ix_memory_record_status", "status"),
+        Index("ix_memory_record_updated_at", "updated_at"),
+        Index("ix_memory_record_user_status", "user_id", "status"),
     )
 
     memory_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -101,7 +101,7 @@ class MemoryModel(TimestampMixin, Base):
 
 
 class PreferenceModel(TimestampMixin, Base):
-    __tablename__ = "preferences"
+    __tablename__ = "preference_current"
     __table_args__ = (
         CheckConstraint(
             "confidence >= 0.0 AND confidence <= 1.0",
@@ -111,16 +111,16 @@ class PreferenceModel(TimestampMixin, Base):
         CheckConstraint("revision >= 1", name="revision_positive"),
         UniqueConstraint(
             "user_id", "preference_key", "scope", "scope_value",
-            name="uq_preferences_scope",
+            name="uq_preference_current_scope",
         ),
-        Index("ix_preferences_user_id", "user_id"),
-        Index("ix_preferences_status", "status"),
-        Index("ix_preferences_updated_at", "updated_at"),
+        Index("ix_preference_current_user_id", "user_id"),
+        Index("ix_preference_current_status", "status"),
+        Index("ix_preference_current_updated_at", "updated_at"),
     )
 
     preference_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     memory_id: Mapped[str] = mapped_column(
-        ForeignKey("memories.memory_id", ondelete="CASCADE"),
+        ForeignKey("memory_record.memory_id", ondelete="CASCADE"),
         unique=True,
         nullable=False,
     )
@@ -164,7 +164,7 @@ class PreferenceVersionModel(Base):
 
     version_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     preference_id: Mapped[str] = mapped_column(
-        ForeignKey("preferences.preference_id", ondelete="CASCADE"), nullable=False
+        ForeignKey("preference_current.preference_id", ondelete="CASCADE"), nullable=False
     )
     user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -203,7 +203,7 @@ class KnowledgeModel(TimestampMixin, Base):
 
     knowledge_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     memory_id: Mapped[str] = mapped_column(
-        ForeignKey("memories.memory_id", ondelete="CASCADE"),
+        ForeignKey("memory_record.memory_id", ondelete="CASCADE"),
         unique=True,
         nullable=False,
     )
@@ -270,10 +270,10 @@ class KnowledgeRelationModel(TimestampMixin, Base):
     relation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     source_memory_id: Mapped[str] = mapped_column(
-        ForeignKey("memories.memory_id"), nullable=False
+        ForeignKey("memory_record.memory_id"), nullable=False
     )
     target_memory_id: Mapped[str] = mapped_column(
-        ForeignKey("memories.memory_id"), nullable=False
+        ForeignKey("memory_record.memory_id"), nullable=False
     )
     relation: Mapped[ConflictRelation] = mapped_column(
         enum_column(ConflictRelation), nullable=False
@@ -282,24 +282,24 @@ class KnowledgeRelationModel(TimestampMixin, Base):
 
 
 class ConflictModel(TimestampMixin, Base):
-    __tablename__ = "conflicts"
+    __tablename__ = "conflict"
     __table_args__ = (
         CheckConstraint(
             "confidence >= 0.0 AND confidence <= 1.0",
             name="confidence_range",
         ),
-        Index("ix_conflicts_user_id", "user_id"),
-        Index("ix_conflicts_status", "status"),
-        Index("ix_conflicts_updated_at", "updated_at"),
+        Index("ix_conflict_user_id", "user_id"),
+        Index("ix_conflict_status", "status"),
+        Index("ix_conflict_updated_at", "updated_at"),
     )
 
     conflict_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     old_memory_id: Mapped[str] = mapped_column(
-        ForeignKey("memories.memory_id"), nullable=False
+        ForeignKey("memory_record.memory_id"), nullable=False
     )
     new_memory_id: Mapped[str] = mapped_column(
-        ForeignKey("memories.memory_id"), nullable=False
+        ForeignKey("memory_record.memory_id"), nullable=False
     )
     relation: Mapped[ConflictRelation] = mapped_column(
         enum_column(ConflictRelation), nullable=False
@@ -348,7 +348,7 @@ class MemoryTransitionModel(Base):
 
     transition_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     memory_id: Mapped[str] = mapped_column(
-        ForeignKey("memories.memory_id"), nullable=False
+        ForeignKey("memory_record.memory_id"), nullable=False
     )
     user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     from_memory_type: Mapped[MemoryKind] = mapped_column(
@@ -371,11 +371,11 @@ class MemoryTransitionModel(Base):
 
 
 class EvaluationRunModel(TimestampMixin, Base):
-    __tablename__ = "evaluation_runs"
+    __tablename__ = "evaluation_run"
     __table_args__ = (
-        Index("ix_evaluation_runs_user_id", "user_id"),
-        Index("ix_evaluation_runs_status", "status"),
-        Index("ix_evaluation_runs_updated_at", "updated_at"),
+        Index("ix_evaluation_run_user_id", "user_id"),
+        Index("ix_evaluation_run_status", "status"),
+        Index("ix_evaluation_run_updated_at", "updated_at"),
     )
 
     evaluation_run_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -393,11 +393,11 @@ class EvaluationRunModel(TimestampMixin, Base):
 
 
 class IdempotencyRecordModel(Base):
-    __tablename__ = "idempotency_records"
+    __tablename__ = "idempotency_record"
     __table_args__ = (
         UniqueConstraint("user_id", "operation", "idempotency_key"),
-        Index("ix_idempotency_records_user_id", "user_id"),
-        Index("ix_idempotency_records_updated_at", "created_at"),
+        Index("ix_idempotency_record_user_id", "user_id"),
+        Index("ix_idempotency_record_updated_at", "created_at"),
     )
 
     record_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -413,10 +413,10 @@ class IdempotencyRecordModel(Base):
 
 
 class AuditLogModel(Base):
-    __tablename__ = "audit_logs"
+    __tablename__ = "audit_log"
     __table_args__ = (
-        Index("ix_audit_logs_user_id", "user_id"),
-        Index("ix_audit_logs_updated_at", "created_at"),
+        Index("ix_audit_log_user_id", "user_id"),
+        Index("ix_audit_log_updated_at", "created_at"),
     )
 
     audit_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -441,7 +441,7 @@ class VectorMappingModel(TimestampMixin, Base):
 
     mapping_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     memory_id: Mapped[str] = mapped_column(
-        ForeignKey("memories.memory_id", ondelete="CASCADE"),
+        ForeignKey("memory_record.memory_id", ondelete="CASCADE"),
         unique=True,
         nullable=False,
     )

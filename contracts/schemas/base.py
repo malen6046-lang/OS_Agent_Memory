@@ -11,7 +11,7 @@ from pydantic import (
     JsonValue,
 )
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.0"
 
 
 class ContractModel(BaseModel):

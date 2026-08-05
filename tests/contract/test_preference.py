@@ -2,14 +2,15 @@ import pytest
 from contracts.schemas.preference import PreferenceRecord
 
 VALID = {
+    "user_id": "usr_001",
     "preference_key": "output.format",
     "value": "table",
     "category": "output_style",
     "scope": "global",
-    "scope_value": "office",
+    "scope_value": None,
     "polarity": "positive",
     "confidence": 0.91,
-    "evidence_count": 2,
+    "evidence_count": 1,
     "evidence": [{"source_event_id": "evt_x", "weight": 0.8}],
     "revision": 1,
     "status": "active",

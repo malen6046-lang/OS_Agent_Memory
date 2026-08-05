@@ -1,11 +1,11 @@
 {
-  "contract_version": "1.0.0",
+  "contract_version": "1.0",
   "examples": {
     "events_ingest": {
       "request": {
         "events": [
           {
-            "contract_version": "1.0.0",
+          "contract_version": "1.0",
             "request_id": "req_example",
             "idempotency_key": "idem_example",
             "user_id": "usr_example",
@@ -36,7 +36,7 @@
       "request": {
         "events": [
           {
-            "contract_version": "1.0.0",
+            "contract_version": "1.0",
             "request_id": "req_example",
             "idempotency_key": "idem_example",
             "user_id": "usr_example",

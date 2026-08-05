@@ -65,10 +65,18 @@ class KnowledgeService:
         """Write to metadata, BM25, and vector store. Returns indexed status per store."""
         doc = {
             "doc_id": memory_id,
+            "memory_id": memory_id,
             "text": text,
             "content_text": text,
             "user_id": user_id,
-            "memory_kind": rec.get("knowledge_type", rec.get("memory_kind", "semantic")),
+            "memory_kind": rec.get("memory_kind", "semantic"),
+            "subtype": rec.get("subtype", rec.get("knowledge_type", "fact")),
+            "content": rec,
+            "confidence": rec.get("source_reliability", rec.get("confidence", 0.8)),
+            "importance": rec.get("importance", rec.get("source_reliability", 0.8)),
+            "revision": rec.get("revision", 1),
+            "valid_from": rec.get("effective_at", rec.get("valid_from")),
+            "source_refs": [rec.get("source_event_id", "")],
             "status": rec.get("status", "active"),
             "scene": rec.get("scene", "default"),
         }
@@ -101,12 +109,11 @@ class KnowledgeService:
                     result = self._vs.upsert([{
                         "vector_pk": pk,
                         "vector": vectors[0],
-                        "memory_id": memory_id,
-                        "user_id": user_id,
-                        "memory_kind": doc["memory_kind"],
-                        "status": doc["status"],
-                        "scene": doc["scene"],
-                        "content_text": text,
+                        **{
+                            key: value
+                            for key, value in doc.items()
+                            if key not in {"doc_id", "text"}
+                        },
                     }])
                     if result.get("errors"):
                         errors.append(f"vector: {result['errors']}")

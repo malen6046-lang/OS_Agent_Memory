@@ -38,11 +38,12 @@ def test_mock_configuration_registers_every_required_singleton():
     assert container.retriever.vector_store is container.vector_store
 
 
-def test_development_profile_selects_fallback_providers():
+def test_development_profile_selects_real_algorithm_with_mvp_providers():
     container = build_service_container(ConfigManager().load("development"))
 
-    assert isinstance(container.embedding_provider, FallbackEmbeddingProvider)
-    assert isinstance(container.vector_store, FallbackVectorStoreAdapter)
+    assert container.mode == "real"
+    assert type(container.embedding_provider).__name__ == "MockEmbeddingProvider"
+    assert type(container.vector_store).__name__ == "MemoryVectorStore"
 
 
 def test_environment_can_switch_service_and_provider_configuration(
@@ -96,7 +97,7 @@ def test_real_mode_loads_each_explicitly_configured_factory():
     assert container.vector_store_adapter is container.vector_store
 
 
-def test_real_service_without_implementation_has_explicit_error():
+def test_real_service_without_external_implementation_uses_built_in_algorithms():
     config = ConfigManager().load().model_copy(
         update={
             "services": ConfigManager().load().services.model_copy(
@@ -105,11 +106,10 @@ def test_real_service_without_implementation_has_explicit_error():
         }
     )
 
-    with pytest.raises(
-        ServiceStartupError,
-        match="PreferenceService real implementation is not configured",
-    ):
-        build_service_container(config)
+    container = build_service_container(config)
+    assert container.mode == "real"
+    assert type(container.knowledge_service).__name__ == "AsyncKnowledgeServiceAdapter"
+    assert type(container.retriever).__name__ == "AsyncHybridRetrieverAdapter"
 
 
 def test_kylin_provider_without_implementation_has_explicit_error():

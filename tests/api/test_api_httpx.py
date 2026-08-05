@@ -13,12 +13,12 @@ from app.core.database import (
     create_session_factory,
     create_sqlite_engine,
 )
-from app.core.dependencies import get_platform_service
+from app.core.dependencies import get_api_service
 from app.core.errors import AppError
 from app.main import app
 from app.models import AuditLogModel, Base, IdempotencyRecordModel
 from app.repositories.in_memory import InMemoryRepository
-from app.services.platform import PlatformService
+from app.services.platform import MemoryApiService
 from contracts.schemas import (
     ErrorCode,
     ErrorResponse,
@@ -48,7 +48,7 @@ def event_payload(
     source_event_id: str = "evt_httpx",
 ) -> dict:
     return {
-        "contract_version": "1.0.0",
+        "contract_version": "1.0",
         "request_id": request_id,
         "idempotency_key": idempotency_key,
         "user_id": "usr_httpx",
@@ -167,7 +167,7 @@ class SqliteIdempotencyRepository:
         return created
 
 
-class PersistentTestService(PlatformService):
+class PersistentTestService(MemoryApiService):
     async def ingest_events(self, events) -> EventIngestResult:
         created = await self._repository.save_events(events)
         return EventIngestResult(
@@ -189,7 +189,7 @@ class PersistentTestService(PlatformService):
         )
 
 
-class AlgorithmFailureService(PlatformService):
+class AlgorithmFailureService(MemoryApiService):
     async def search(self, request: SearchRequest):
         raise AppError(
             ErrorCode.EMBEDDING_RUNTIME_FAILED,
@@ -200,7 +200,7 @@ class AlgorithmFailureService(PlatformService):
         )
 
 
-class TransactionFailureService(PlatformService):
+class TransactionFailureService(MemoryApiService):
     def __init__(self, repository, session_factory) -> None:
         super().__init__(repository)
         self._session_factory = session_factory
@@ -278,7 +278,7 @@ async def test_duplicate_write_uses_temporary_sqlite(
 ):
     _, session_factory, database_path = test_database
     service = PersistentTestService(SqliteIdempotencyRepository(session_factory))
-    app.dependency_overrides[get_platform_service] = lambda: service
+    app.dependency_overrides[get_api_service] = lambda: service
     payload = {"events": [event_payload()]}
 
     first = await client.post("/api/v1/events/ingest", json=payload)
@@ -297,7 +297,7 @@ async def test_duplicate_write_uses_temporary_sqlite(
 @pytest.mark.anyio
 async def test_algorithm_service_exception_uses_unified_error_schema(client):
     service = AlgorithmFailureService(InMemoryRepository())
-    app.dependency_overrides[get_platform_service] = lambda: service
+    app.dependency_overrides[get_api_service] = lambda: service
 
     response = await client.post("/api/v1/memory/search", json=search_payload())
 
@@ -312,7 +312,7 @@ async def test_database_transaction_failure_rolls_back(
 ):
     _, session_factory, _ = test_database
     service = TransactionFailureService(InMemoryRepository(), session_factory)
-    app.dependency_overrides[get_platform_service] = lambda: service
+    app.dependency_overrides[get_api_service] = lambda: service
 
     response = await client.post(
         "/api/v1/events/ingest",
@@ -348,7 +348,7 @@ async def test_health_check_matches_schema(client):
     response = await client.get("/api/v1/health")
     assert response.status_code == 200
     parsed = SuccessResponse[HealthResponse].model_validate(response.json())
-    assert parsed.data.contract_version == "1.0.0"
+    assert parsed.data.contract_version == "1.0"
     assert "api" in parsed.data.components
 
 

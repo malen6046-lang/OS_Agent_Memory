@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.repositories.protocols import MemoryRepository
+from app.repositories.protocols import PlatformRepository
+from app.orchestrator import MemoryOrchestrator
 from contracts.schemas import (
     CONTRACT_VERSION,
     ConflictResolveRequest,
@@ -38,16 +39,25 @@ from contracts.schemas import (
     ProviderHealth,
     RiskLevel,
     SearchRequest,
+    SearchResult,
     SearchResponse,
     ErrorCode,
 )
 
 
-class PlatformService:
-    """V1.1契约Mock。只验证接口边界，不实现真实业务或持久化。"""
+class MemoryApiService:
+    """V1.2.1 API facade over orchestrated algorithms and repositories."""
 
-    def __init__(self, repository: MemoryRepository) -> None:
+    def __init__(
+        self,
+        repository: PlatformRepository,
+        *,
+        orchestrator: MemoryOrchestrator | None = None,
+        service_container: object | None = None,
+    ) -> None:
         self._repository = repository
+        self._orchestrator = orchestrator
+        self._service_container = service_container
 
     async def ingest_events(self, events) -> EventIngestResult:
         await self._repository.save_events(events)
@@ -70,20 +80,37 @@ class PlatformService:
     async def get_preferences(
         self, user_id: str, scene: str, keys: list[str] | None
     ) -> PreferenceListResult:
-        return PreferenceListResult(items=[])
+        items = await self._repository.list_preferences(user_id, scene, keys)
+        return PreferenceListResult(items=items)
 
     async def preference_history(
         self, user_id: str, key: str
     ) -> PreferenceListResult:
-        return PreferenceListResult(items=[])
+        items = await self._repository.preference_versions(user_id, key)
+        return PreferenceListResult(items=items)
 
     async def ingest_knowledge(
         self, request: KnowledgeIngestRequest
     ) -> KnowledgeIngestResult:
+        algorithm_items: list[dict] = []
+        if self._orchestrator is not None:
+            result = await self._orchestrator.ingest_knowledge(request)
+            if isinstance(result, dict):
+                algorithm_items = result.get("items", [])
+
         items: list[KnowledgeIngestItem] = []
         for index, record in enumerate(request.records):
+            algorithm_item = (
+                algorithm_items[index] if index < len(algorithm_items) else {}
+            )
+            action = algorithm_item.get("status", "inserted")
+            outcome = {
+                "duplicate": ItemOutcome.DUPLICATE,
+                "conflict": ItemOutcome.CONFLICT_PENDING,
+                "inserted": ItemOutcome.CREATED,
+            }.get(action, ItemOutcome.FAILED)
             memory = KnowledgeMemoryResponse(
-                memory_id=f"mem_{uuid4()}",
+                memory_id=algorithm_item.get("memory_id", f"mem_{uuid4()}"),
                 user_id=request.user_id,
                 memory_kind=MemoryKind.SEMANTIC,
                 subtype=MemorySubtype.FACT,
@@ -104,14 +131,63 @@ class PlatformService:
             items.append(
                 KnowledgeIngestItem(
                     input_index=index,
-                    outcome=ItemOutcome.CREATED,
+                    outcome=outcome,
                     memory=memory,
                 )
             )
-        return KnowledgeIngestResult(status=OperationStatus.ACCEPTED, items=items)
+        status = (
+            OperationStatus.ACCEPTED
+            if all(item.outcome is not ItemOutcome.FAILED for item in items)
+            else OperationStatus.PARTIAL_FAILURE
+        )
+        response = KnowledgeIngestResult(status=status, items=items)
+        await self._repository.save_knowledge(request, response)
+        return response
+
+    async def get_memory(
+        self, user_id: str, memory_id: str
+    ) -> MemoryResponse | None:
+        return await self._repository.get_memory(user_id, memory_id)
+
+    async def memory_transitions(
+        self, user_id: str, memory_id: str | None = None
+    ) -> list[dict]:
+        return await self._repository.list_transitions(user_id, memory_id)
 
     async def search(self, request: SearchRequest) -> SearchResponse:
-        return SearchResponse(items=[])
+        if self._orchestrator is None:
+            return SearchResponse(items=[])
+        result = await self._orchestrator.search_memory(request)
+        raw_items = result.get("items", []) if isinstance(result, dict) else []
+        items: list[SearchResult] = []
+        now = datetime.now(timezone.utc)
+        for rank, item in enumerate(raw_items, start=1):
+            metadata = item.get("metadata", {})
+            valid_from = metadata.get("valid_from") or now
+            source_refs = [ref for ref in metadata.get("source_refs", []) if ref]
+            memory = MemoryResponse(
+                memory_id=item["memory_id"],
+                user_id=request.user_id,
+                memory_kind=metadata.get("memory_kind", item.get("memory_kind", "semantic")),
+                subtype=metadata.get("subtype", "fact"),
+                content_text=item.get("content_text", metadata.get("content_text", "")),
+                content=metadata.get("content", {}),
+                status=metadata.get("status", "active"),
+                confidence=metadata.get("confidence", 0.8),
+                importance=metadata.get("importance", 0.8),
+                revision=metadata.get("revision", 1),
+                valid_from=valid_from,
+                valid_to=None,
+                expires_at=None,
+                scene_tags=[metadata["scene"]] if metadata.get("scene") else [],
+                source_refs=source_refs,
+                supersedes=[],
+                attributes={},
+            )
+            items.append(
+                SearchResult(memory=memory, rank=rank, score=item.get("score", 0.0))
+            )
+        return SearchResponse(items=items)
 
     async def resolve_conflict(
         self, conflict_id: str, request: ConflictResolveRequest
@@ -194,7 +270,7 @@ class PlatformService:
     async def run_evaluation(
         self, request: EvaluationRunRequest
     ) -> EvaluationResult:
-        return EvaluationResult(
+        result = EvaluationResult(
             evaluation_run_id=f"eval_{uuid4()}",
             status=EvaluationStatus.ACCEPTED,
             evaluation_types=request.evaluation_types,
@@ -205,3 +281,5 @@ class PlatformService:
             metrics=None,
             error=None,
         )
+        await self._repository.create_evaluation(request, result)
+        return result

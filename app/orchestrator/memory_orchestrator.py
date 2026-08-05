@@ -40,6 +40,9 @@ class MemoryOrchestrator:
     async def search_memory(self, request: Any) -> Any:
         return await self._retriever.search(request)
 
+    async def ingest_knowledge(self, request: Any) -> Any:
+        return await self._knowledge_service.ingest(request)
+
     async def preview_forget(self, request: Any) -> Any:
         return await self._forget_service.preview(request)
 

@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.models import (
+    AuditLogModel,
+    EvaluationRunModel,
     ForgetAuditModel,
+    IdempotencyRecordModel,
     KnowledgeModel,
     KnowledgeVersionModel,
     MemoryModel,
@@ -18,10 +24,14 @@ from app.models import (
 from contracts.schemas import (
     ErrorCode,
     Evidence,
+    EvaluationResult,
+    EvaluationRunRequest,
     ForgetExecuteRequest,
     ForgetFailedItem,
     ForgetResult,
     KnowledgeCreate,
+    KnowledgeIngestRequest,
+    KnowledgeIngestResult,
     MemoryCreate,
     MemoryKind,
     MemoryResponse,
@@ -31,6 +41,7 @@ from contracts.schemas import (
     PreferenceResponse,
     PreferenceUpdate,
 )
+from app.core.database import SqlAlchemyUnitOfWork
 
 
 class RevisionConflictError(RuntimeError):
@@ -417,3 +428,259 @@ class MemoryTransitionSqlAlchemyRepository:
         )
         self._session.flush()
         return transition_id
+
+
+class AuditSqlAlchemyRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def record(
+        self,
+        *,
+        request_id: str,
+        user_id: str,
+        operation: str,
+        target_ids: list[str],
+        details: dict[str, Any],
+    ) -> str:
+        audit_id = _new_id("audit")
+        self._session.add(
+            AuditLogModel(
+                audit_id=audit_id,
+                request_id=request_id,
+                user_id=user_id,
+                operation=operation,
+                target_ids=target_ids,
+                details=details,
+            )
+        )
+        self._session.flush()
+        return audit_id
+
+
+class EvaluationSqlAlchemyRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def create(
+        self, request: EvaluationRunRequest, result: EvaluationResult
+    ) -> None:
+        self._session.add(
+            EvaluationRunModel(
+                evaluation_run_id=result.evaluation_run_id,
+                request_id=request.request_id,
+                user_id=request.user_id,
+                status=result.status,
+                evaluation_types=[item.value for item in result.evaluation_types],
+                started_at=result.started_at,
+                completed_at=result.completed_at,
+                report_uri=result.report_uri,
+                metrics=result.metrics,
+                error=(result.error.model_dump(mode="json") if result.error else None),
+            )
+        )
+        self._session.flush()
+
+
+class SqlAlchemyPlatformRepository:
+    """Application-scoped facade over request-scoped SQLAlchemy sessions."""
+
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._session_factory = session_factory
+
+    async def save_events(self, events: list[Any]) -> int:
+        created = 0
+        with SqlAlchemyUnitOfWork(self._session_factory) as uow:
+            assert uow.session is not None
+            audit = AuditSqlAlchemyRepository(uow.session)
+            for event in events:
+                existing = uow.session.scalar(
+                    select(IdempotencyRecordModel).where(
+                        IdempotencyRecordModel.user_id == event.user_id,
+                        IdempotencyRecordModel.operation == "events.ingest",
+                        IdempotencyRecordModel.idempotency_key
+                        == event.idempotency_key,
+                    )
+                )
+                if existing is not None:
+                    continue
+                now = datetime.now(timezone.utc)
+                uow.session.add(
+                    IdempotencyRecordModel(
+                        record_id=_new_id("idem"),
+                        user_id=event.user_id,
+                        operation="events.ingest",
+                        idempotency_key=event.idempotency_key,
+                        request_hash=sha256(
+                            event.model_dump_json().encode("utf-8")
+                        ).hexdigest(),
+                        response=None,
+                        created_at=now,
+                        expires_at=now + timedelta(hours=24),
+                    )
+                )
+                audit.record(
+                    request_id=event.request_id,
+                    user_id=event.user_id,
+                    operation="events.ingest",
+                    target_ids=[event.source_event_id],
+                    details={"source": event.source.value, "scene": event.scene},
+                )
+                created += 1
+        return created
+
+    async def save_knowledge(
+        self, request: KnowledgeIngestRequest, result: KnowledgeIngestResult
+    ) -> None:
+        with SqlAlchemyUnitOfWork(self._session_factory) as uow:
+            assert uow.session is not None
+            audit = AuditSqlAlchemyRepository(uow.session)
+            saved_ids: list[str] = []
+            for item, source in zip(result.items, request.records, strict=True):
+                memory = item.memory
+                if memory is None or uow.session.get(MemoryModel, memory.memory_id):
+                    continue
+                uow.session.add(
+                    MemoryModel(
+                        memory_id=memory.memory_id,
+                        user_id=memory.user_id,
+                        memory_type=memory.memory_kind,
+                        subtype=memory.subtype,
+                        content_text=memory.content_text,
+                        content=memory.content.model_dump(mode="json"),
+                        status=memory.status,
+                        confidence=memory.confidence,
+                        importance=memory.importance,
+                        revision=memory.revision,
+                        valid_from=memory.valid_from,
+                        valid_to=memory.valid_to,
+                        expires_at=memory.expires_at,
+                        scene_tags=memory.scene_tags,
+                        source_refs=memory.source_refs,
+                        supersedes=memory.supersedes,
+                        attributes=memory.attributes,
+                    )
+                )
+                knowledge_id = _new_id("kn")
+                uow.session.add(
+                    KnowledgeModel(
+                        knowledge_id=knowledge_id,
+                        memory_id=memory.memory_id,
+                        user_id=request.user_id,
+                        current_revision=1,
+                        status=memory.status,
+                    )
+                )
+                uow.session.add(
+                    KnowledgeSqlAlchemyRepository._new_version(
+                        knowledge_id, request.user_id, 1, source
+                    )
+                )
+                saved_ids.append(memory.memory_id)
+            if saved_ids:
+                audit.record(
+                    request_id=request.request_id,
+                    user_id=request.user_id,
+                    operation="knowledge.ingest",
+                    target_ids=saved_ids,
+                    details={"source_event_id": request.source_event_id},
+                )
+
+    async def get_memory(
+        self, user_id: str, memory_id: str
+    ) -> MemoryResponse | None:
+        with self._session_factory() as session:
+            return MemorySqlAlchemyRepository(session).get(user_id, memory_id)
+
+    async def list_preferences(
+        self, user_id: str, scene: str, keys: list[str] | None = None
+    ) -> list[PreferenceResponse]:
+        with self._session_factory() as session:
+            statement = select(PreferenceModel).where(
+                PreferenceModel.user_id == user_id,
+                PreferenceModel.status == MemoryStatus.ACTIVE,
+            )
+            if keys:
+                statement = statement.where(PreferenceModel.preference_key.in_(keys))
+            current_rows = list(session.scalars(statement))
+            repository = PreferenceSqlAlchemyRepository(session)
+            return [
+                repository._to_response(row, repository._latest_version(row.preference_id))
+                for row in current_rows
+                if row.scope_value in {"", scene}
+            ]
+
+    async def preference_versions(
+        self, user_id: str, preference_key: str
+    ) -> list[PreferenceResponse]:
+        with self._session_factory() as session:
+            current = session.scalar(
+                select(PreferenceModel).where(
+                    PreferenceModel.user_id == user_id,
+                    PreferenceModel.preference_key == preference_key,
+                )
+            )
+            if current is None:
+                return []
+            versions = PreferenceSqlAlchemyRepository(session).history(
+                current.preference_id
+            )
+            return [
+                PreferenceResponse(
+                    user_id=current.user_id,
+                    preference_key=current.preference_key,
+                    value=version.value,
+                    category=version.category,
+                    scope=version.scope,
+                    scope_value=version.scope_value or None,
+                    polarity=version.polarity,
+                    confidence=version.confidence,
+                    evidence=version.evidence,
+                    evidence_count=version.evidence_count,
+                    revision=version.revision,
+                    status=version.status,
+                )
+                for version in versions
+            ]
+
+    async def list_transitions(
+        self, user_id: str, memory_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        with self._session_factory() as session:
+            statement = select(MemoryTransitionModel).where(
+                MemoryTransitionModel.user_id == user_id
+            )
+            if memory_id:
+                statement = statement.where(
+                    MemoryTransitionModel.memory_id == memory_id
+                )
+            rows = list(
+                session.scalars(statement.order_by(MemoryTransitionModel.transitioned_at))
+            )
+            return [
+                {
+                    "transition_id": row.transition_id,
+                    "memory_id": row.memory_id,
+                    "user_id": row.user_id,
+                    "from_memory_type": row.from_memory_type.value,
+                    "to_memory_type": row.to_memory_type.value,
+                    "from_status": row.from_status.value,
+                    "to_status": row.to_status.value,
+                    "reason": row.reason,
+                    "source_event_id": row.source_event_id,
+                    "transitioned_at": row.transitioned_at.isoformat(),
+                }
+                for row in rows
+            ]
+
+    async def record_audit(self, **kwargs: Any) -> str:
+        with SqlAlchemyUnitOfWork(self._session_factory) as uow:
+            assert uow.session is not None
+            return AuditSqlAlchemyRepository(uow.session).record(**kwargs)
+
+    async def create_evaluation(
+        self, request: EvaluationRunRequest, result: EvaluationResult
+    ) -> None:
+        with SqlAlchemyUnitOfWork(self._session_factory) as uow:
+            assert uow.session is not None
+            EvaluationSqlAlchemyRepository(uow.session).create(request, result)

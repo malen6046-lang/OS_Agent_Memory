@@ -46,7 +46,7 @@ def test_loads_project_default_yaml(monkeypatch):
 @pytest.mark.parametrize(
     ("environment", "embedding_provider", "vector_provider"),
     [
-        ("development", "sentence_transformer", "faiss"),
+        ("development", "mock", "memory"),
         ("kylin", "kylin", "kylin"),
     ],
 )
