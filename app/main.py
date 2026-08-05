@@ -96,6 +96,7 @@ async def orchestrator_exception_handler(
     status_code = {
         "VALIDATION_ERROR": 422,
         "SENSITIVE_CONTENT_BLOCKED": 422,
+        "UNAUTHORIZED_SCOPE": 403,
         "IDEMPOTENCY_CONFLICT": 409,
         "CONFIRMATION_EXPIRED": 410,
         "SEARCH_TIMEOUT": 504,

@@ -118,9 +118,24 @@ def build_service_container(config: AppConfig) -> ServiceContainer:
     mode = config.services.mode
 
     if mode == "mock":
-        preference_service = MockPreferenceService()
-        safety_service = MockSafetyService()
-        forget_service = MockForgetService()
+        preference_service = _load_optional(
+            "PreferenceService",
+            config.services.preference_implementation,
+            MockPreferenceService,
+            config=config,
+        )
+        safety_service = _load_optional(
+            "SafetyService",
+            config.services.safety_implementation,
+            MockSafetyService,
+            config=config,
+        )
+        forget_service = _load_optional(
+            "ForgetService",
+            config.services.forget_implementation,
+            MockForgetService,
+            config=config,
+        )
         knowledge_service = MockKnowledgeService()
         memory_repository = _load_optional(
             "MemoryRepository",

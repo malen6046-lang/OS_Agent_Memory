@@ -1,4 +1,6 @@
 import asyncio
+import sys
+from types import ModuleType
 
 import pytest
 
@@ -58,6 +60,10 @@ def test_mock_configuration_registers_every_required_singleton():
 def test_development_profile_selects_fallback_providers():
     container = build_service_container(ConfigManager().load("development"))
 
+    assert isinstance(container.preference_service, MockPreferenceService)
+    assert isinstance(container.safety_service, MockSafetyService)
+    assert isinstance(container.forget_service, MockForgetService)
+    assert isinstance(container.knowledge_service, MockKnowledgeService)
     assert isinstance(container.embedding_provider, FallbackEmbeddingProvider)
     assert isinstance(container.vector_store, FallbackVectorStoreAdapter)
     assert isinstance(container.memory_repository, SQLiteMemoryRepository)
@@ -66,6 +72,61 @@ def test_development_profile_selects_fallback_providers():
         SQLiteIdempotencyRepository,
     )
     assert isinstance(container.audit_repository, SQLiteAuditRepository)
+
+
+def test_mock_mode_can_override_only_preference_safety_and_forget(
+    monkeypatch,
+):
+    module = ModuleType("test_preference_safety_factories")
+
+    class PreferenceOverride:
+        def __init__(self, config):
+            self.config = config
+
+    class SafetyOverride:
+        def __init__(self, config):
+            self.config = config
+
+    class ForgetOverride:
+        def __init__(self, config):
+            self.config = config
+
+    module.PreferenceOverride = PreferenceOverride
+    module.SafetyOverride = SafetyOverride
+    module.ForgetOverride = ForgetOverride
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+
+    base = ConfigManager().load("default")
+    services = base.services.model_copy(
+        update={
+            "preference_implementation": (
+                f"{module.__name__}:PreferenceOverride"
+            ),
+            "safety_implementation": f"{module.__name__}:SafetyOverride",
+            "forget_implementation": f"{module.__name__}:ForgetOverride",
+        }
+    )
+    config = base.model_copy(update={"services": services})
+
+    container = build_service_container(config)
+
+    assert container.mode == "mock"
+    assert isinstance(container.preference_service, PreferenceOverride)
+    assert isinstance(container.safety_service, SafetyOverride)
+    assert isinstance(container.forget_service, ForgetOverride)
+    assert container.preference_service.config is config
+    assert container.safety_service.config is config
+    assert container.forget_service.config is config
+    assert isinstance(container.knowledge_service, MockKnowledgeService)
+    assert isinstance(container.retriever, MockRetriever)
+    assert isinstance(container.embedding_provider, MockEmbeddingProvider)
+    assert isinstance(container.vector_store, MockVectorStoreAdapter)
+    assert isinstance(container.memory_repository, MockMemoryRepository)
+    assert isinstance(
+        container.idempotency_repository, MockIdempotencyRepository
+    )
+    assert isinstance(container.audit_repository, MockAuditRepository)
+    assert isinstance(container.evaluation_service, MockEvaluationService)
 
 
 def test_environment_can_switch_service_and_provider_configuration(

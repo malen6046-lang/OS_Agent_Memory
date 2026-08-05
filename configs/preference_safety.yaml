@@ -1,0 +1,4 @@
+services:
+  preference_implementation: modules.preference_safety.preference_service:PreferenceService
+  safety_implementation: modules.preference_safety.safety_service:SafetyService
+  forget_implementation: modules.preference_safety.forget_service:ForgetService

@@ -3,13 +3,24 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import os
 from pathlib import Path
 
 import pytest
 
 from app.core.config import ConfigManager
-from app.dependencies import build_service_container
+from app.dependencies import (
+    MockAuditRepository,
+    MockEmbeddingProvider,
+    MockEvaluationService,
+    MockIdempotencyRepository,
+    MockKnowledgeService,
+    MockMemoryRepository,
+    MockRetriever,
+    MockVectorStoreAdapter,
+    build_service_container,
+)
 from app.main import app
 
 
@@ -21,6 +32,17 @@ EXPECTED_API_ROUTES = {
     ("POST", "/api/v1/forget/preview"),
     ("POST", "/api/v1/forget/execute"),
     ("POST", "/api/v1/evaluations/run"),
+}
+PREFERENCE_SAFETY_OVERRIDES = {
+    "preference_implementation": (
+        "modules.preference_safety.preference_service:PreferenceService"
+    ),
+    "safety_implementation": (
+        "modules.preference_safety.safety_service:SafetyService"
+    ),
+    "forget_implementation": (
+        "modules.preference_safety.forget_service:ForgetService"
+    ),
 }
 
 
@@ -45,6 +67,12 @@ def _violations(paths: list[Path], forbidden: set[str]) -> dict[str, list[str]]:
         if imports:
             found[path.relative_to(PROJECT_ROOT).as_posix()] = imports
     return found
+
+
+def _clear_os_agent_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in list(os.environ):
+        if name.upper().startswith("OS_AGENT_"):
+            monkeypatch.delenv(name)
 
 
 def test_backend_stage_keeps_the_six_frozen_api_routes() -> None:
@@ -77,9 +105,7 @@ def test_default_and_development_assembly_stay_algorithm_free(
     composition_files = [PROJECT_ROOT / "app" / "main.py", *dependency_files]
     assert _violations(composition_files, {"modules"}) == {}
 
-    for name in list(os.environ):
-        if name.upper().startswith("OS_AGENT_"):
-            monkeypatch.delenv(name)
+    _clear_os_agent_environment(monkeypatch)
 
     container = build_service_container(ConfigManager().load(profile))
     assembled_components = {
@@ -97,3 +123,60 @@ def test_default_and_development_assembly_stay_algorithm_free(
         if type(component).__module__.partition(".")[0] == "modules"
     }
     assert algorithm_components == {}
+
+
+def test_preference_safety_profile_changes_only_three_service_factories(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_os_agent_environment(monkeypatch)
+    baseline = ConfigManager().load("default").model_dump(mode="python")
+    configured = ConfigManager().load("preference_safety").model_dump(
+        mode="python"
+    )
+
+    baseline["services"].update(PREFERENCE_SAFETY_OVERRIDES)
+
+    assert configured == baseline
+    assert configured["services"]["mode"] == "mock"
+
+
+def test_preference_safety_profile_builds_and_starts_hybrid_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_os_agent_environment(monkeypatch)
+    container = build_service_container(
+        ConfigManager().load("preference_safety")
+    )
+
+    assert type(container.preference_service).__module__ == (
+        "modules.preference_safety.preference_service"
+    )
+    assert type(container.safety_service).__module__ == (
+        "modules.preference_safety.safety_service"
+    )
+    assert type(container.forget_service).__module__ == (
+        "modules.preference_safety.forget_service"
+    )
+    assert isinstance(container.knowledge_service, MockKnowledgeService)
+    assert isinstance(container.retriever, MockRetriever)
+    assert isinstance(container.embedding_provider, MockEmbeddingProvider)
+    assert isinstance(container.vector_store, MockVectorStoreAdapter)
+    assert isinstance(container.memory_repository, MockMemoryRepository)
+    assert isinstance(
+        container.idempotency_repository, MockIdempotencyRepository
+    )
+    assert isinstance(container.audit_repository, MockAuditRepository)
+    assert isinstance(container.evaluation_service, MockEvaluationService)
+
+    async def exercise_lifecycle() -> None:
+        await container.start()
+        try:
+            assert container.embedding_provider.started is True
+            assert container.vector_store.started is True
+        finally:
+            await container.close()
+
+    asyncio.run(exercise_lifecycle())
+
+    assert container.embedding_provider.closed is True
+    assert container.vector_store.closed is True
