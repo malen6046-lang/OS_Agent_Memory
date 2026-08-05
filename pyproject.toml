@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools==80.10.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "os-agent-memory"
+version = "0.1.0"
+description = "OS Agent memory service for Kylin Linux Desktop V11"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.140.13",
+    "starlette==1.3.1",
+    "httpx==0.28.1",
+    "pydantic==2.13.4",
+    "SQLAlchemy==2.0.51",
+    "PyYAML==6.0.3",
+    "uvicorn==0.51.0",
+    "numpy==1.26.4",
+]
+
+[project.scripts]
+os-agent-memory-init-db = "scripts.init_db:main"
+
+[project.optional-dependencies]
+test = [
+    "pytest==8.4.2",
+    "anyio==4.14.2",
+]
+frontend = [
+    "streamlit==1.37.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+namespaces = true
+include = [
+    "app*",
+    "contracts*",
+    "adapters*",
+    "modules*",
+    "repositories*",
+    "evaluation*",
+    "frontend*",
+    "scripts*",
+    "configs*",
+    "migrations*",
+]
+exclude = ["frontend.tests*"]
+
+[tool.setuptools.package-data]
+configs = ["*.yaml"]
+migrations = ["*.sql", "versions/*.sql"]
+frontend = [".streamlit/*.toml"]
+scripts = ["*.sh"]
