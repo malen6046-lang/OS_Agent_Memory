@@ -118,8 +118,10 @@ def write_evaluation_report_md(path: Path, summary: dict[str, Any]) -> None:
         "",
         f"- **生成时间**：{summary.get('started_at', '')}",
         f"- **数据划分**：`{summary.get('split', '')}`",
-        f"- **运行时**：{rt.get('python_version', '')}（要求 {rt.get('requires', 'CPython 3.12')}）",
-        f"- **可执行文件**：`{rt.get('executable', '')}`",
+        f"- **运行时**：python_version={rt.get('python_version', '')}"
+        f"（要求 {rt.get('requires', 'CPython 3.12')}）",
+        f"- **解释器标识**：`{rt.get('executable', 'python3.12')}`"
+        "（不含本机绝对路径，符合 V1.2.2）",
         "",
         "> **声明**：本报告为离线 baseline / 联调结果，"
         "**不得**直接表述为比赛红线已达标。"
@@ -231,6 +233,7 @@ def main() -> int:
             file=sys.stderr,
         )
 
+    # V1.2.2: do not leak personal absolute paths into deliverable reports.
     summary: dict[str, Any] = {
         "schema_version": "0.1.0",
         "split": args.split,
@@ -239,7 +242,7 @@ def main() -> int:
             "language": "python",
             "requires": "CPython >=3.12,<3.13",
             "python_version": sys.version.split()[0],
-            "executable": sys.executable,
+            "executable": f"python{py.major}.{py.minor}",
         },
         "disclaimer": (
             "Baseline offline scores only. Not competition-target claims. "

@@ -21,7 +21,7 @@ evaluation/
 ```bash
 cd OS_Agent_Memory-evaluation-dataset
 python3.12 -m evaluation.run_all --split dev
-python3.12 -m pytest tests/evaluation/test_run_all_smoke.py -q
+python3.12 -m pytest tests/unit/evaluation -q
 ```
 
 报告写入：
@@ -30,6 +30,8 @@ python3.12 -m pytest tests/evaluation/test_run_all_smoke.py -q
 - `evaluation/reports/result.csv`（指标表）
 
 数据规范：`dataset/README.md`；复核：`复核记录.md`；端到端场景：`scenarios/`。  
+联调注入：`联调注入说明.md`；第二人抽查：`第二人抽查清单.md`。  
+单测：`python -m pytest tests/unit/evaluation -q`。  
 当前分数为 **baseline**，`status=baseline_not_competition_claim`，不可写成已达红线。
 
 ## 8_3 关键点摘要

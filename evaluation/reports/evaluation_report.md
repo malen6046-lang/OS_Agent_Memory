@@ -1,9 +1,9 @@
 # OS Agent Memory 评测报告（Dataset V0.1）
 
-- **生成时间**：2026-08-03T14:45:51.662656+00:00
-- **数据划分**：`all`
-- **运行时**：3.12.7（要求 CPython >=3.12,<3.13）
-- **可执行文件**：`D:\software\anaconda\python.exe`
+- **生成时间**：2026-08-05T06:25:56.021607+00:00
+- **数据划分**：`dev`
+- **运行时**：python_version=3.12.7（要求 CPython >=3.12,<3.13）
+- **解释器标识**：`python3.12`（不含本机绝对路径，符合 V1.2.2）
 
 > **声明**：本报告为离线 baseline / 联调结果，**不得**直接表述为比赛红线已达标。麒麟实机 Embedding/向量库延迟与真实 ForgetService 需另行验收。
 
@@ -11,12 +11,12 @@
 
 | 任务 | n | 主结果摘要 | status |
 |------|---|------------|--------|
-| preference | 50 | exact=0.18, macro_f1=0.11111111111111112 | `baseline_not_competition_claim` |
-| retrieval | 50 | R@5=0.42, MRR=0.30752380952380953 | `baseline_not_competition_claim` |
-| conflict | 20 | joint=0.1 | `baseline_not_competition_claim` |
-| forget | 20 | P=0.7083333333333333, R=0.95, exec=0.45 | `baseline_not_competition_claim` |
-| security | 10 | block=1.0, entity=0.9 | `baseline_not_competition_claim` |
-| latency | 50 | p95=1.5ms (demo) | `baseline_not_competition_claim` |
+| preference | 42 | exact=0.2619047619047619, macro_f1=0.14774774774774774 | `baseline_not_competition_claim` |
+| retrieval | 59 | R@5=0.4576271186440678, MRR=0.34731638418079097 | `baseline_not_competition_claim` |
+| conflict | 17 | joint=0.11764705882352941 | `baseline_not_competition_claim` |
+| forget | 17 | P=0.6568627450980392, R=0.9411764705882353, exec=0.35294117647058826 | `baseline_not_competition_claim` |
+| security | 32 | block=0.84375, entity=0.8125 | `baseline_not_competition_claim` |
+| latency | 59 | p95=6.8ms (demo) | `baseline_not_competition_claim` |
 
 ## 2. 分任务明细
 
@@ -24,9 +24,9 @@
 
 ```
 {'task': 'preference',
- 'split': 'all',
- 'n': 50,
- 'exact_match_accuracy': 0.18,
+ 'split': 'dev',
+ 'n': 42,
+ 'exact_match_accuracy': 0.2619047619047619,
  'match_fields': ['preference_key',
                   'value',
                   'category',
@@ -34,11 +34,11 @@
                   'scope_value',
                   'polarity',
                   'status'],
- 'micro_precision': 0.46153846153846156,
- 'micro_recall': 0.1276595744680851,
- 'micro_f1': 0.2,
- 'macro_f1': 0.11111111111111112,
- 'sample_macro_f1': 0.18,
+ 'micro_precision': 0.5789473684210527,
+ 'micro_recall': 0.2558139534883721,
+ 'micro_f1': 0.3548387096774194,
+ 'macro_f1': 0.14774774774774774,
+ 'sample_macro_f1': 0.28968253968253965,
  'ephemeral_false_positive_rate': 0.0,
  'note': 'baseline_extract only; inject PreferenceService via extract_fn for real scores',
  'extractor': 'baseline_extract',
@@ -49,13 +49,19 @@
 
 ```
 {'task': 'retrieval',
- 'split': 'all',
- 'n': 50,
- 'corpus_size': 50,
- 'recall_at_k': {'1': 0.22, '3': 0.36, '5': 0.42, '10': 0.52},
- 'hit_at_k': {'1': 0.22, '3': 0.36, '5': 0.42, '10': 0.52},
- 'mrr': 0.30752380952380953,
- 'latency_ms': {'p50': 1.0, 'p95': 1.0, 'mean': 0.742},
+ 'split': 'dev',
+ 'n': 59,
+ 'corpus_size': 60,
+ 'recall_at_k': {'1': 0.1864406779661017,
+                 '3': 0.3559322033898305,
+                 '5': 0.4576271186440678,
+                 '10': 0.5084745762711864},
+ 'hit_at_k': {'1': 0.22033898305084745,
+              '3': 0.423728813559322,
+              '5': 0.5423728813559322,
+              '10': 0.5932203389830508},
+ 'mrr': 0.34731638418079097,
+ 'latency_ms': {'p50': 0.9, 'p95': 5.9, 'mean': 1.6745762711864407},
  'cross_user_leak_cases': 0,
  'id_hash': 'sha256',
  'backend': 'HybridRetriever+BM25+MemoryVectorStore+DemoEmbedding(sha256)',
@@ -67,19 +73,19 @@
 
 ```
 {'task': 'conflict',
- 'split': 'all',
- 'n': 20,
+ 'split': 'dev',
+ 'n': 17,
  'primary_metric': 'joint_accuracy',
- 'joint_accuracy': 0.1,
- 'relation_accuracy': 0.25,
- 'strategy_accuracy': 0.1,
- 'predicted_manual_review_rate': 0.55,
- 'gold_manual_review_rate': 0.1,
- 'auto_apply_rate': 0.44999999999999996,
+ 'joint_accuracy': 0.11764705882352941,
+ 'relation_accuracy': 0.29411764705882354,
+ 'strategy_accuracy': 0.11764705882352941,
+ 'predicted_manual_review_rate': 0.5882352941176471,
+ 'gold_manual_review_rate': 0.058823529411764705,
+ 'auto_apply_rate': 0.4117647058823529,
  'confusion_matrix_relation': {'duplicate->duplicate': 0,
                                'duplicate->support': 0,
                                'duplicate->extend': 0,
-                               'duplicate->replace': 3,
+                               'duplicate->replace': 2,
                                'duplicate->contradict': 0,
                                'duplicate->unrelated': 0,
                                'support->duplicate': 0,
@@ -93,19 +99,19 @@
                                'extend->extend': 0,
                                'extend->replace': 0,
                                'extend->contradict': 2,
-                               'extend->unrelated': 1,
+                               'extend->unrelated': 0,
                                'replace->duplicate': 0,
                                'replace->support': 0,
                                'replace->extend': 0,
                                'replace->replace': 0,
-                               'replace->contradict': 4,
-                               'replace->unrelated': 1,
+                               'replace->contradict': 3,
+                               'replace->unrelated': 2,
                                'contradict->duplicate': 0,
                                'contradict->support': 0,
                                'contradict->extend': 0,
                                'contradict->replace': 0,
                                'contradict->contradict': 4,
-                               'contradict->unrelated': 1,
+                               'contradict->unrelated': 0,
                                'unrelated->duplicate': 0,
                                'unrelated->support': 0,
                                'unrelated->extend': 0,
@@ -120,13 +126,13 @@
 
 ```
 {'task': 'forget',
- 'split': 'all',
- 'n': 20,
- 'preview_precision': 0.7083333333333333,
- 'preview_recall': 0.95,
+ 'split': 'dev',
+ 'n': 17,
+ 'preview_precision': 0.6568627450980392,
+ 'preview_recall': 0.9411764705882353,
  'false_delete_count': 10,
- 'execute_success_rate': 0.45,
- 'residual_or_false_delete_fail_rate': 0.5,
+ 'execute_success_rate': 0.35294117647058826,
+ 'residual_or_false_delete_fail_rate': 0.5882352941176471,
  'confirmation_token_scheme': 'sha256(case_id:user:instruction)',
  'drop_collection_forbidden': True,
  'resolver': 'baseline_preview',
@@ -138,25 +144,25 @@
 
 ```
 {'task': 'security',
- 'split': 'all',
- 'n': 10,
- 'block_accuracy': 1.0,
- 'entity_type_accuracy': 0.9,
- 'joint_accuracy': 0.9,
+ 'split': 'dev',
+ 'n': 32,
+ 'block_accuracy': 0.84375,
+ 'entity_type_accuracy': 0.8125,
+ 'joint_accuracy': 0.8125,
  'detector': 'baseline_detect',
  'status': 'baseline_not_competition_claim',
- 'note': 'n=10 small; baseline regex co-located — do not claim production readiness'}
+ 'note': 'baseline regex co-located — do not claim production readiness; hard-suite expanded in P3'}
 ```
 
 ### latency
 
 ```
 {'task': 'latency',
- 'split': 'all',
- 'n': 50,
- 'p50_ms': 1.0,
- 'p95_ms': 1.5,
- 'mean_ms': 0.8759999999999999,
+ 'split': 'dev',
+ 'n': 59,
+ 'p50_ms': 0.0,
+ 'p95_ms': 6.8,
+ 'mean_ms': 1.535593220338983,
  'budget_ms': 500,
  'p95_within_budget_demo_only': True,
  'status': 'baseline_not_competition_claim',
@@ -167,10 +173,10 @@
 
 | 指标 | 目标 | 本报告 |
 |------|------|--------|
-| 偏好 exact-match | ≥85% | 0.18 |
-| 检索 Recall（常用 R@5 参考） | ≥85% | 0.42 |
-| 冲突正确率（joint） | ≥88% | 0.1 |
-| 检索延迟 P95 | ≤500ms（麒麟实机） | demo p95=1.5ms |
+| 偏好 exact-match | ≥85% | 0.2619047619047619 |
+| 检索 Recall（常用 R@5 参考） | ≥85% | 0.4576271186440678 |
+| 冲突正确率（joint） | ≥88% | 0.11764705882352941 |
+| 检索延迟 P95 | ≤500ms（麒麟实机） | demo p95=6.8ms |
 
 ## 4. 附件
 

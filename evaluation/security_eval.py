@@ -61,7 +61,7 @@ def run_security_eval(
         "joint_accuracy": entity_hits / n,
         "detector": getattr(fn, "__name__", "custom"),
         "status": "baseline_not_competition_claim",
-        "note": "n=10 small; baseline regex co-located — do not claim production readiness",
+        "note": "baseline regex co-located — do not claim production readiness; hard-suite expanded in P3",
     }
 
 

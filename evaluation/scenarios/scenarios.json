@@ -12,8 +12,23 @@
       "预期结果",
       "实际结果"
     ],
-    "ref_cases": ["PREF-0003", "PREF-0001", "CONF-0003", "RET-0001"],
-    "ref_memory_ids": ["mem_kb_0001"],
+    "ref_cases": [
+      "PREF-0003",
+      "PREF-0050",
+      "PREF-0048",
+      "CONF-0021",
+      "RET-0051"
+    ],
+    "ref_private_cases": [
+      "PREF-0003",
+      "PREF-0050",
+      "PREF-0048",
+      "CONF-0021",
+      "RET-0051"
+    ],
+    "ref_public_memory_ids": [
+      "mem_kb_0001"
+    ],
     "actual_result_status": "dataset_gold_ok_e2e_pending"
   },
   {
@@ -29,7 +44,21 @@
       "预期结果",
       "实际结果"
     ],
-    "ref_cases": ["PREF-0014", "PREF-0017", "PREF-0016", "CONF-0001", "FORG-0004"],
+    "ref_cases": [
+      "PREF-0014",
+      "PREF-0051",
+      "PREF-0052",
+      "CONF-0022",
+      "FORG-0021"
+    ],
+    "ref_private_cases": [
+      "PREF-0014",
+      "PREF-0051",
+      "PREF-0052",
+      "CONF-0022",
+      "FORG-0021"
+    ],
+    "ref_public_memory_ids": [],
     "actual_result_status": "dataset_gold_ok_e2e_pending"
   },
   {
@@ -45,7 +74,19 @@
       "预期结果",
       "实际结果"
     ],
-    "ref_cases": ["PREF-0028", "PREF-0021", "PREF-0022", "CONF-0005"],
+    "ref_cases": [
+      "PREF-0053",
+      "PREF-0054",
+      "PREF-0022",
+      "CONF-0023"
+    ],
+    "ref_private_cases": [
+      "PREF-0053",
+      "PREF-0054",
+      "PREF-0022",
+      "CONF-0023"
+    ],
+    "ref_public_memory_ids": [],
     "actual_result_status": "dataset_gold_ok_e2e_pending"
   },
   {
@@ -61,8 +102,14 @@
       "预期结果",
       "实际结果"
     ],
-    "ref_cases": ["RET-0001"],
-    "ref_memory_ids": ["mem_kb_0001"],
+    "ref_cases": [
+      "RET-0001"
+    ],
+    "ref_private_cases": [],
+    "ref_public_memory_ids": [
+      "mem_kb_0001"
+    ],
+    "knowledge_space": "public",
     "actual_result_status": "baseline_retrieval_only"
   },
   {
@@ -78,7 +125,15 @@
       "预期结果",
       "实际结果"
     ],
-    "ref_cases": ["FORG-0001", "FORG-0002"],
+    "ref_cases": [
+      "FORG-0001",
+      "FORG-0002"
+    ],
+    "ref_private_cases": [
+      "FORG-0001",
+      "FORG-0002"
+    ],
+    "ref_public_memory_ids": [],
     "actual_result_status": "in_memory_forget_ok_real_db_pending"
   }
 ]

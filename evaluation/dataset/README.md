@@ -16,14 +16,18 @@
 
 | 文件 | 任务 | 条数 | 主指标 |
 |------|------|------|--------|
-| `preference.jsonl` | 偏好提取 | 50 | exact-match、micro/macro F1、临时指令误记率 |
-| `knowledge_corpus.jsonl` | 知识语料（MemoryRecord） | 50 | 被检索语料 |
-| `retrieval_queries.jsonl` | 知识检索 | 50 | Recall@K、MRR、延迟 |
-| `conflict.jsonl` | 知识/偏好冲突 | 20 | joint_accuracy（relation+strategy） |
-| `forget.jsonl` | 精准遗忘 | 20 | preview P/R、execute/残留 |
-| `security.jsonl` | 敏感过滤 | 10 | block + entity_type |
+| `preference.jsonl` | 偏好提取 | 57 | exact-match、micro/macro F1、临时指令误记率 |
+| `knowledge_corpus.jsonl` | 知识语料（MemoryRecord） | 60 | 被检索语料 |
+| `retrieval_queries.jsonl` | 知识检索 | 78 | Recall@K、MRR、延迟 |
+| `conflict.jsonl` | 知识/偏好冲突 | 23 | joint_accuracy（relation+strategy） |
+| `forget.jsonl` | 精准遗忘 | 24 | preview P/R、execute/残留 |
+| `security.jsonl` | 敏感过滤 | 40 | block + entity_type |
 
 端到端场景见 [`../scenarios/`](../scenarios/)（开发助手 / 办公助手 / 系统维护 / 知识问答 / 遗忘操作）。
+
+P3 困难集标签含 `hard` / `p3` / `multi_gold`（≥10 条）/ `no_answer` / `cross_user` 等；语料含 inactive/tombstoned 与跨用户私有 `mem_priv_*`。
+
+联调注入：[`../联调注入说明.md`](../联调注入说明.md)。第二人抽查：[`../第二人抽查清单.md`](../第二人抽查清单.md)。
 
 划分：约 70% `dev`，30% `held_out`。`held_out` 禁止调参。
 

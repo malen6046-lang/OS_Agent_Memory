@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 from pprint import pprint
-from typing import Any
+from typing import Any, Callable
 
 _REPO = Path(__file__).resolve().parent.parent
 if str(_REPO) not in sys.path:
@@ -17,6 +17,9 @@ from evaluation.loaders import load_cases, load_corpus
 from evaluation.metrics import hit_at_k, mrr, percentile, recall_at_k, stable_embed, stable_int_id
 from modules.knowledge_retrieval.bm25 import BM25Retriever
 from modules.knowledge_retrieval.hybrid_retriever import HybridRetriever
+
+# search_fn(query_case) -> {"results": [{"memory_id": ...}, ...], "meta": {"elapsed_ms": float}}
+SearchFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 class _DemoEmbedding:
@@ -65,10 +68,15 @@ def build_retriever(corpus: list[dict[str, Any]] | None = None, dim: int = 32) -
     return HybridRetriever(emb, vs, bm25)
 
 
-def run_retrieval_eval(*, split: str = "dev") -> dict[str, Any]:
+def run_retrieval_eval(
+    *,
+    split: str = "dev",
+    search_fn: SearchFn | None = None,
+) -> dict[str, Any]:
+    """Offline retrieval eval. Inject real KnowledgeService via ``search_fn``."""
     corpus = load_corpus()
     queries = load_cases("retrieval", split=split)
-    hr = build_retriever(corpus)
+    hr = None if search_fn is not None else build_retriever(corpus)
     ks = [1, 3, 5, 10]
     recalls = {k: [] for k in ks}
     hits = {k: [] for k in ks}
@@ -76,7 +84,11 @@ def run_retrieval_eval(*, split: str = "dev") -> dict[str, Any]:
     cross_user_leak = 0
     for q in queries:
         uid = q.get("user_id")
-        resp = hr.search({"query": q["query"], "user_id": uid, "top_k": 10})
+        if search_fn is not None:
+            resp = search_fn(q)
+        else:
+            assert hr is not None
+            resp = hr.search({"query": q["query"], "user_id": uid, "top_k": 10})
         ranked = [r["memory_id"] for r in resp.get("results", [])]
         gold = q.get("expected", {}).get("gold_memory_ids", [])
         for k in ks:
@@ -87,10 +99,16 @@ def run_retrieval_eval(*, split: str = "dev") -> dict[str, Any]:
         # user isolation check against corpus metadata
         id2user = {m["memory_id"]: m.get("user_id") for m in corpus}
         for mid in ranked:
-            if uid and id2user.get(mid) not in (None, uid):
+            owner = id2user.get(mid)
+            if uid and owner not in (None, uid, "usr_corpus_shared"):
                 cross_user_leak += 1
                 break
     n = max(len(queries), 1)
+    backend = (
+        "injected_search_fn"
+        if search_fn is not None
+        else "HybridRetriever+BM25+MemoryVectorStore+DemoEmbedding(sha256)"
+    )
     return {
         "task": "retrieval",
         "split": split,
@@ -106,7 +124,7 @@ def run_retrieval_eval(*, split: str = "dev") -> dict[str, Any]:
         },
         "cross_user_leak_cases": cross_user_leak,
         "id_hash": "sha256",
-        "backend": "HybridRetriever+BM25+MemoryVectorStore+DemoEmbedding(sha256)",
+        "backend": backend,
         "note": "DemoEmbedding latency is NOT Kylin ≤500ms evidence",
         "status": "baseline_not_competition_claim",
     }
