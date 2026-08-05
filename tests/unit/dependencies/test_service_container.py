@@ -64,6 +64,7 @@ def test_development_profile_selects_fallback_providers():
     assert isinstance(container.safety_service, MockSafetyService)
     assert isinstance(container.forget_service, MockForgetService)
     assert isinstance(container.knowledge_service, MockKnowledgeService)
+    assert isinstance(container.retriever, MockRetriever)
     assert isinstance(container.embedding_provider, FallbackEmbeddingProvider)
     assert isinstance(container.vector_store, FallbackVectorStoreAdapter)
     assert isinstance(container.memory_repository, SQLiteMemoryRepository)
@@ -126,6 +127,107 @@ def test_mock_mode_can_override_only_preference_safety_and_forget(
         container.idempotency_repository, MockIdempotencyRepository
     )
     assert isinstance(container.audit_repository, MockAuditRepository)
+    assert isinstance(container.evaluation_service, MockEvaluationService)
+
+
+def test_mock_mode_builds_configured_algorithm_graph_in_dependency_order(
+    monkeypatch,
+):
+    module = ModuleType("test_algorithm_graph_factories")
+    events = []
+
+    class KnowledgeOverride:
+        pass
+
+    class RetrieverOverride:
+        pass
+
+    class ForgetOverride:
+        pass
+
+    def build_knowledge_service(
+        embedding_provider,
+        vector_store,
+        memory_repository,
+        config,
+        app_config,
+    ):
+        events.append("knowledge")
+        service = KnowledgeOverride()
+        service.dependencies = (
+            embedding_provider,
+            vector_store,
+            memory_repository,
+            config,
+            app_config,
+        )
+        return service
+
+    def build_hybrid_retriever(
+        knowledge_service,
+        embedding_provider,
+        vector_store,
+        memory_repository,
+    ):
+        events.append("retriever")
+        service = RetrieverOverride()
+        service.dependencies = (
+            knowledge_service,
+            embedding_provider,
+            vector_store,
+            memory_repository,
+        )
+        return service
+
+    def build_forget_service(retriever):
+        events.append("forget")
+        service = ForgetOverride()
+        service.retriever = retriever
+        return service
+
+    module.build_knowledge_service = build_knowledge_service
+    module.build_hybrid_retriever = build_hybrid_retriever
+    module.build_forget_service = build_forget_service
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+
+    base = ConfigManager().load("default")
+    services = base.services.model_copy(
+        update={
+            "knowledge_implementation": (
+                f"{module.__name__}:build_knowledge_service"
+            ),
+            "retriever_implementation": (
+                f"{module.__name__}:build_hybrid_retriever"
+            ),
+            "forget_implementation": (
+                f"{module.__name__}:build_forget_service"
+            ),
+        }
+    )
+    config = base.model_copy(update={"services": services})
+
+    container = build_service_container(config)
+
+    assert events == ["knowledge", "retriever", "forget"]
+    assert isinstance(container.knowledge_service, KnowledgeOverride)
+    assert isinstance(container.retriever, RetrieverOverride)
+    assert isinstance(container.forget_service, ForgetOverride)
+    assert container.knowledge_service.dependencies == (
+        container.embedding_provider,
+        container.vector_store,
+        container.memory_repository,
+        config.retrieval,
+        config,
+    )
+    assert container.retriever.dependencies == (
+        container.knowledge_service,
+        container.embedding_provider,
+        container.vector_store,
+        container.memory_repository,
+    )
+    assert container.forget_service.retriever is container.retriever
+    assert isinstance(container.preference_service, MockPreferenceService)
+    assert isinstance(container.safety_service, MockSafetyService)
     assert isinstance(container.evaluation_service, MockEvaluationService)
 
 
@@ -196,7 +298,7 @@ def test_real_mode_loads_each_explicitly_configured_factory():
     assert container.vector_store_adapter is container.vector_store
 
 
-def test_real_service_without_implementation_has_explicit_error():
+def test_real_mode_without_repository_implementation_has_explicit_error():
     config = ConfigManager().load().model_copy(
         update={
             "services": ConfigManager().load().services.model_copy(
@@ -207,7 +309,7 @@ def test_real_service_without_implementation_has_explicit_error():
 
     with pytest.raises(
         ServiceStartupError,
-        match="PreferenceService real implementation is not configured",
+        match="MemoryRepository real implementation is not configured",
     ):
         build_service_container(config)
 

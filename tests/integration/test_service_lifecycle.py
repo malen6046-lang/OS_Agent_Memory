@@ -52,7 +52,7 @@ def test_lifespan_fails_when_real_service_is_missing(monkeypatch):
 
     with pytest.raises(
         ServiceStartupError,
-        match="PreferenceService real implementation is not configured",
+        match="MemoryRepository real implementation is not configured",
     ):
         with TestClient(app):
             pass

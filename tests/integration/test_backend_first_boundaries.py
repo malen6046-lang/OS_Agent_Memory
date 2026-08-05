@@ -14,10 +14,13 @@ from app.dependencies import (
     MockAuditRepository,
     MockEmbeddingProvider,
     MockEvaluationService,
+    MockForgetService,
     MockIdempotencyRepository,
     MockKnowledgeService,
     MockMemoryRepository,
+    MockPreferenceService,
     MockRetriever,
+    MockSafetyService,
     MockVectorStoreAdapter,
     build_service_container,
 )
@@ -35,13 +38,22 @@ EXPECTED_API_ROUTES = {
 }
 PREFERENCE_SAFETY_OVERRIDES = {
     "preference_implementation": (
-        "modules.preference_safety.preference_service:PreferenceService"
+        "adapters.preference_safety.preference:build_preference_service"
     ),
     "safety_implementation": (
-        "modules.preference_safety.safety_service:SafetyService"
+        "adapters.preference_safety.safety:build_safety_service"
     ),
     "forget_implementation": (
-        "modules.preference_safety.forget_service:ForgetService"
+        "adapters.preference_safety.forget:build_forget_service"
+    ),
+}
+ALGORITHM_MODULE_OVERRIDES = {
+    **PREFERENCE_SAFETY_OVERRIDES,
+    "knowledge_implementation": (
+        "adapters.knowledge_retrieval.knowledge:build_knowledge_service"
+    ),
+    "retriever_implementation": (
+        "adapters.knowledge_retrieval.retrieval:build_hybrid_retriever"
     ),
 }
 
@@ -148,17 +160,62 @@ def test_preference_safety_profile_builds_and_starts_hybrid_container(
         ConfigManager().load("preference_safety")
     )
 
-    assert type(container.preference_service).__module__ == (
-        "modules.preference_safety.preference_service"
-    )
-    assert type(container.safety_service).__module__ == (
-        "modules.preference_safety.safety_service"
-    )
-    assert type(container.forget_service).__module__ == (
-        "modules.preference_safety.forget_service"
-    )
+    assert not isinstance(container.preference_service, MockPreferenceService)
+    assert not isinstance(container.safety_service, MockSafetyService)
+    assert not isinstance(container.forget_service, MockForgetService)
     assert isinstance(container.knowledge_service, MockKnowledgeService)
     assert isinstance(container.retriever, MockRetriever)
+    assert isinstance(container.embedding_provider, MockEmbeddingProvider)
+    assert isinstance(container.vector_store, MockVectorStoreAdapter)
+    assert isinstance(container.memory_repository, MockMemoryRepository)
+    assert isinstance(
+        container.idempotency_repository, MockIdempotencyRepository
+    )
+    assert isinstance(container.audit_repository, MockAuditRepository)
+    assert isinstance(container.evaluation_service, MockEvaluationService)
+
+    async def exercise_lifecycle() -> None:
+        await container.start()
+        try:
+            assert container.embedding_provider.started is True
+            assert container.vector_store.started is True
+        finally:
+            await container.close()
+
+    asyncio.run(exercise_lifecycle())
+
+    assert container.embedding_provider.closed is True
+    assert container.vector_store.closed is True
+
+
+def test_algorithm_modules_profile_changes_only_five_service_factories(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_os_agent_environment(monkeypatch)
+    baseline = ConfigManager().load("default").model_dump(mode="python")
+    configured = ConfigManager().load("algorithm_modules").model_dump(
+        mode="python"
+    )
+
+    baseline["services"].update(ALGORITHM_MODULE_OVERRIDES)
+
+    assert configured == baseline
+    assert configured["services"]["mode"] == "mock"
+
+
+def test_algorithm_modules_profile_builds_only_configured_algorithm_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_os_agent_environment(monkeypatch)
+    container = build_service_container(
+        ConfigManager().load("algorithm_modules")
+    )
+
+    assert not isinstance(container.preference_service, MockPreferenceService)
+    assert not isinstance(container.safety_service, MockSafetyService)
+    assert not isinstance(container.forget_service, MockForgetService)
+    assert not isinstance(container.knowledge_service, MockKnowledgeService)
+    assert not isinstance(container.retriever, MockRetriever)
     assert isinstance(container.embedding_provider, MockEmbeddingProvider)
     assert isinstance(container.vector_store, MockVectorStoreAdapter)
     assert isinstance(container.memory_repository, MockMemoryRepository)

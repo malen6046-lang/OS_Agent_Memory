@@ -7,9 +7,9 @@ import pytest
 
 from app.core.config import ConfigManager
 from app.dependencies import build_service_container, get_memory_orchestrator
+from adapters.preference_safety.forget import ForgetServiceAdapter
 from contracts.schemas.envelope import Envelope
 from contracts.schemas.forget import ForgetExecuteRequest, ForgetPreviewRequest
-from modules.preference_safety import ForgetService
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ async def test_profile_runs_real_preference_safety_and_two_stage_forget():
     await container.start()
     try:
         ingested = await orchestrator.ingest(
-            _envelope("evt_safe", "I use VIM for daily editing.")
+            _envelope("evt_safe", "I use vim for daily editing.")
         )
 
         assert ingested["success"] is True
@@ -168,7 +168,7 @@ async def test_real_safety_blocks_sensitive_payload_before_any_write():
 @pytest.mark.anyio
 async def test_expired_confirmation_uses_the_frozen_error_code():
     current = [datetime(2099, 1, 1, tzinfo=timezone.utc)]
-    forget_service = ForgetService(clock=lambda: current[0])
+    forget_service = ForgetServiceAdapter(clock=lambda: current[0])
     container = build_service_container(
         ConfigManager().load("preference_safety")
     )
