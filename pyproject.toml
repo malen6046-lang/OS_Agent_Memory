@@ -32,7 +32,7 @@ frontend = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = "-ra --basetemp=.pytest_cache/tmp"
 
 [tool.setuptools]
 include-package-data = true

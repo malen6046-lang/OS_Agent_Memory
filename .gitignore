@@ -20,6 +20,10 @@ htmlcov/
 *.sqlite3
 
 reports/
+!data/reports/
+data/reports/*
+!data/reports/.gitkeep
+!evaluation/reports/
 evaluation/reports/*
 !evaluation/reports/.gitkeep
 
