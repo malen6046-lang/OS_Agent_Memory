@@ -1,6 +1,6 @@
-"""Automated evaluation programs for the OS Agent Memory MVP.
+# -*- coding: utf-8 -*-
+"""evaluation package — Dataset V0.1 loaders + runners."""
 
-The individual metric scripts (run_all / preference_eval / retrieval_eval /
-conflict_eval / security_eval / forget_eval / latency_eval) are filled in as
-part of the dataset integration step.
-"""
+from evaluation.loaders import DATASET_DIR, load_cases, load_corpus
+
+__all__ = ["DATASET_DIR", "load_cases", "load_corpus"]

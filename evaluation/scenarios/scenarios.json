@@ -1,0 +1,139 @@
+[
+  {
+    "scenario_id": "SCN-01",
+    "name": "开发助手",
+    "scene": "software_dev",
+    "user_id": "usr_kylin_004",
+    "doc": "01_开发助手.md",
+    "flow": [
+      "初次输入",
+      "产生记忆",
+      "第二次调用",
+      "预期结果",
+      "实际结果"
+    ],
+    "ref_cases": [
+      "PREF-0003",
+      "PREF-0050",
+      "PREF-0048",
+      "CONF-0021",
+      "RET-0051"
+    ],
+    "ref_private_cases": [
+      "PREF-0003",
+      "PREF-0050",
+      "PREF-0048",
+      "CONF-0021",
+      "RET-0051"
+    ],
+    "ref_public_memory_ids": [
+      "mem_kb_0001"
+    ],
+    "actual_result_status": "dataset_gold_ok_e2e_pending"
+  },
+  {
+    "scenario_id": "SCN-02",
+    "name": "办公助手",
+    "scene": "office_automation",
+    "user_id": "usr_kylin_005",
+    "doc": "02_办公助手.md",
+    "flow": [
+      "初次输入",
+      "产生记忆",
+      "第二次调用",
+      "预期结果",
+      "实际结果"
+    ],
+    "ref_cases": [
+      "PREF-0014",
+      "PREF-0051",
+      "PREF-0052",
+      "CONF-0022",
+      "FORG-0021"
+    ],
+    "ref_private_cases": [
+      "PREF-0014",
+      "PREF-0051",
+      "PREF-0052",
+      "CONF-0022",
+      "FORG-0021"
+    ],
+    "ref_public_memory_ids": [],
+    "actual_result_status": "dataset_gold_ok_e2e_pending"
+  },
+  {
+    "scenario_id": "SCN-03",
+    "name": "系统维护助手",
+    "scene": "system_maintenance",
+    "user_id": "usr_kylin_003",
+    "doc": "03_系统维护助手.md",
+    "flow": [
+      "初次输入",
+      "产生记忆",
+      "第二次调用",
+      "预期结果",
+      "实际结果"
+    ],
+    "ref_cases": [
+      "PREF-0053",
+      "PREF-0054",
+      "PREF-0022",
+      "CONF-0023"
+    ],
+    "ref_private_cases": [
+      "PREF-0053",
+      "PREF-0054",
+      "PREF-0022",
+      "CONF-0023"
+    ],
+    "ref_public_memory_ids": [],
+    "actual_result_status": "dataset_gold_ok_e2e_pending"
+  },
+  {
+    "scenario_id": "SCN-04",
+    "name": "知识问答",
+    "scene": "galaxy_kylin_v11",
+    "user_id": "usr_corpus_shared",
+    "doc": "04_知识问答.md",
+    "flow": [
+      "初次输入",
+      "产生记忆",
+      "第二次调用",
+      "预期结果",
+      "实际结果"
+    ],
+    "ref_cases": [
+      "RET-0001"
+    ],
+    "ref_private_cases": [],
+    "ref_public_memory_ids": [
+      "mem_kb_0001"
+    ],
+    "knowledge_space": "public",
+    "actual_result_status": "baseline_retrieval_only"
+  },
+  {
+    "scenario_id": "SCN-05",
+    "name": "遗忘操作",
+    "scene": "office_automation",
+    "user_id": "usr_kylin_003",
+    "doc": "05_遗忘操作.md",
+    "flow": [
+      "初次输入",
+      "产生记忆",
+      "第二次调用",
+      "预期结果",
+      "实际结果"
+    ],
+    "ref_cases": [
+      "FORG-0001",
+      "FORG-0002"
+    ],
+    "ref_private_cases": [
+      "FORG-0001",
+      "FORG-0002"
+    ],
+    "ref_public_memory_ids": [],
+    "actual_result_status": "in_memory_forget_ok_real_db_pending"
+  }
+]
