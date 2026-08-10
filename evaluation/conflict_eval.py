@@ -77,7 +77,7 @@ def run_conflict_eval(
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--split", default="dev", choices=["dev", "held_out", "all"])
+    p.add_argument("--split", default="dev", choices=["dev", "validation", "final_test", "held_out", "all"])
     args = p.parse_args()
     pprint(run_conflict_eval(split=args.split))
 

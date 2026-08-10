@@ -29,7 +29,9 @@ P3 困难集标签含 `hard` / `p3` / `multi_gold`（≥10 条）/ `no_answer` /
 
 联调注入：[`../联调注入说明.md`](../联调注入说明.md)。第二人抽查：[`../第二人抽查清单.md`](../第二人抽查清单.md)。
 
-划分：约 70% `dev`，30% `held_out`。`held_out` 禁止调参。
+划分：`dev` / `validation` / `final_test`（见 [`SPLIT_POLICY.md`](./SPLIT_POLICY.md)）。  
+`validation` 与 `final_test` 本轮冻结；校验：`python -m evaluation.check_freeze`。  
+旧名 `held_out` 已废弃（加载时等同 `validation`）。
 
 加载入口：`evaluation.loaders.load_cases(task, split=...)`。
 
@@ -42,7 +44,7 @@ P3 困难集标签含 `hard` / `p3` / `multi_gold`（≥10 条）/ `no_answer` /
 | `schema_version` | string | 数据集 schema，当前 `0.1.0` |
 | `case_id` | string | 用例唯一 ID，如 `PREF-0001` |
 | `task_type` | string | 任务类型枚举见下 |
-| `split` | string | `dev` \| `held_out` |
+| `split` | string | `dev` \| `validation` \| `final_test` |
 | `user_id` | string | 用户隔离键 |
 | `scene` | string | 场景标签（自由字符串，需麒麟相关） |
 | `evaluation` | object | 主指标与附报指标声明 |

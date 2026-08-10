@@ -1,0 +1,131 @@
+{
+  "schema_version": "0.1.0",
+  "dataset_release": "V0.2-split-freeze",
+  "policy": {
+    "dev": "开发调试；1/2号可见答案",
+    "validation": "每轮集成评测；本轮优化期间禁止改 GT/答案",
+    "final_test": "最终盲测；1/2号不得提前看到答案"
+  },
+  "legacy_note": "原 held_out 已拆为 validation（前半）+ final_test（后半），按 case_id 排序稳定划分",
+  "counts": {
+    "preference.jsonl": {
+      "dev": 42,
+      "validation": 8,
+      "final_test": 7
+    },
+    "retrieval_queries.jsonl": {
+      "dev": 59,
+      "validation": 10,
+      "final_test": 9
+    },
+    "conflict.jsonl": {
+      "dev": 17,
+      "validation": 3,
+      "final_test": 3
+    },
+    "forget.jsonl": {
+      "dev": 17,
+      "validation": 4,
+      "final_test": 3
+    },
+    "security.jsonl": {
+      "dev": 32,
+      "validation": 4,
+      "final_test": 4
+    }
+  },
+  "frozen_case_ids": {
+    "preference.jsonl": {
+      "validation": [
+        "PREF-0036",
+        "PREF-0037",
+        "PREF-0038",
+        "PREF-0039",
+        "PREF-0040",
+        "PREF-0041",
+        "PREF-0042",
+        "PREF-0043"
+      ],
+      "final_test": [
+        "PREF-0044",
+        "PREF-0045",
+        "PREF-0046",
+        "PREF-0047",
+        "PREF-0048",
+        "PREF-0049",
+        "PREF-0057"
+      ]
+    },
+    "retrieval_queries.jsonl": {
+      "validation": [
+        "RET-0036",
+        "RET-0037",
+        "RET-0038",
+        "RET-0039",
+        "RET-0040",
+        "RET-0041",
+        "RET-0042",
+        "RET-0043",
+        "RET-0044",
+        "RET-0045"
+      ],
+      "final_test": [
+        "RET-0046",
+        "RET-0047",
+        "RET-0048",
+        "RET-0049",
+        "RET-0050",
+        "RET-0057",
+        "RET-0062",
+        "RET-0073",
+        "RET-0077"
+      ]
+    },
+    "conflict.jsonl": {
+      "validation": [
+        "CONF-0015",
+        "CONF-0016",
+        "CONF-0017"
+      ],
+      "final_test": [
+        "CONF-0018",
+        "CONF-0019",
+        "CONF-0020"
+      ]
+    },
+    "forget.jsonl": {
+      "validation": [
+        "FORG-0015",
+        "FORG-0016",
+        "FORG-0017",
+        "FORG-0018"
+      ],
+      "final_test": [
+        "FORG-0019",
+        "FORG-0020",
+        "FORG-0024"
+      ]
+    },
+    "security.jsonl": {
+      "validation": [
+        "SEC-0008",
+        "SEC-0009",
+        "SEC-0010",
+        "SEC-0031"
+      ],
+      "final_test": [
+        "SEC-0032",
+        "SEC-0036",
+        "SEC-0037",
+        "SEC-0040"
+      ]
+    }
+  },
+  "frozen_content_sha256": {
+    "preference.jsonl": "075eebb2542efc97590724e9de46d482621988381ea8675b18472f5620da0de7",
+    "retrieval_queries.jsonl": "14a433eb7e644ab733521a308871abd27a6f7a502c14ad7cc855e4077c347eab",
+    "conflict.jsonl": "492e0f69920b7a5b88ef95f1dd8eb44710eb98b5cdd10e92d7b2aa00d0b2b075",
+    "forget.jsonl": "613173805548ba1f268d7fe5d840f5053218b7355dc0023bb1ef14fe5e94d44e",
+    "security.jsonl": "3b7fbad76907deb7407858f09124b908af118da5c555d3c4d84fde23657ff3db"
+  }
+}

@@ -71,6 +71,31 @@ def test_load_cases_split_filter() -> None:
     assert len(all_rows) >= len(dev)
 
 
+def test_three_way_splits_present() -> None:
+    from collections import Counter
+
+    from evaluation.loaders import DATASET_DIR, load_jsonl
+
+    rows = load_jsonl(DATASET_DIR / "preference.jsonl")
+    counts = Counter(r.get("split") for r in rows)
+    assert counts.get("dev", 0) > 0
+    assert counts.get("validation", 0) > 0
+    assert counts.get("final_test", 0) > 0
+    assert counts.get("held_out", 0) == 0
+
+
+def test_held_out_alias_loads_validation() -> None:
+    via_alias = load_cases("preference", split="held_out")
+    via_new = load_cases("preference", split="validation")
+    assert [r["case_id"] for r in via_alias] == [r["case_id"] for r in via_new]
+
+
+def test_freeze_check_passes() -> None:
+    from evaluation.check_freeze import check
+
+    assert check() == []
+
+
 def test_load_cases_unknown_task() -> None:
     with pytest.raises(KeyError):
         load_cases("not_a_task")

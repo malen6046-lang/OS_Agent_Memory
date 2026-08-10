@@ -1,0 +1,101 @@
+case_id,task,metric,split,system_result,gt,reason_code,reason_note,owner,status,run_date
+PREF-0002,preference,exact_match,dev,"[[""output.structure"", ""complete_tree"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]","[[""output.code_example"", ""full_runnable"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]",基线能力不足,,1/2号,open,2026-08-10
+PREF-0004,preference,exact_match,dev,[],"[[""tool.editor"", ""vim"", ""tool_choice"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0005,preference,exact_match,dev,[],"[[""tool.compiler"", ""gcc"", ""tool_choice"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0007,preference,exact_match,dev,"[[""ui.theme"", ""dark"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]","[[""ui.theme"", ""dark"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",基线能力不足,,1/2号,open,2026-08-10
+PREF-0008,preference,exact_match,dev,"[[""ui.theme"", ""light"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]","[[""ui.theme"", ""light"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",基线能力不足,,1/2号,open,2026-08-10
+PREF-0009,preference,exact_match,dev,[],"[[""ui.font_size"", ""large"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0010,preference,exact_match,dev,[],"[[""ui.high_contrast"", ""enabled"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0011,preference,exact_match,dev,[],"[[""ui.animation"", ""reduced"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0012,preference,exact_match,dev,[],"[[""ui.dnd"", ""enabled"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0013,preference,exact_match,dev,[],"[[""files.sort"", ""mtime"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0015,preference,exact_match,dev,"[[""output.format"", ""table"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]","[[""tool.office"", ""libreoffice"", ""tool_choice"", ""global"", ""global"", ""positive"", ""active""]]",基线能力不足,,1/2号,open,2026-08-10
+PREF-0017,preference,exact_match,dev,"[[""output.format"", ""table"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]","[[""output.structure"", ""conclusion_then_table"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]",基线能力不足,,1/2号,open,2026-08-10
+PREF-0018,preference,exact_match,dev,"[[""output.format"", ""pdf"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]","[[""output.export"", ""pdf"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]",基线能力不足,,1/2号,open,2026-08-10
+PREF-0019,preference,exact_match,dev,[],"[[""tool.browser"", ""firefox"", ""tool_choice"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0020,preference,exact_match,dev,[],"[[""tool.browser"", ""chrome"", ""tool_choice"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0023,preference,exact_match,dev,[],"[[""security.store_plaintext_secret"", ""forbidden"", ""safety_policy"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0024,preference,exact_match,dev,[],"[[""security.ssh_auth"", ""pubkey_only"", ""safety_policy"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0025,preference,exact_match,dev,[],"[[""security.selinux"", ""enforcing"", ""safety_policy"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0027,preference,exact_match,dev,"[[""ui.theme"", ""dark"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]","[[""ui.terminal_theme"", ""dark"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",基线能力不足,,1/2号,open,2026-08-10
+PREF-0028,preference,exact_match,dev,[],"[[""workflow.backup"", ""incremental_local"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0029,preference,exact_match,dev,[],"[[""workflow.backup_last_status"", ""success"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0030,preference,exact_match,dev,[],"[[""workflow.updates"", ""manual"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0031,preference,exact_match,dev,[],"[[""network.prefer"", ""ethernet"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0032,preference,exact_match,dev,[],"[[""network.proxy"", ""corp_http"", ""operation_habit"", ""scene"", ""delivery"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0033,preference,exact_match,dev,[],"[[""network.proxy"", ""direct"", ""operation_habit"", ""scene"", ""personal"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0034,preference,exact_match,dev,[],"[[""security.debug_port"", ""disabled"", ""safety_policy"", ""scene"", ""delivery"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0035,preference,exact_match,dev,[],"[[""security.debug_port"", ""8080"", ""safety_policy"", ""scene"", ""personal"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0051,preference,exact_match,dev,"[[""output.format"", ""table"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]","[[""output.structure"", ""conclusion_then_table"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]",基线能力不足,,1/2号,open,2026-08-10
+PREF-0053,preference,exact_match,dev,[],"[[""workflow.backup"", ""incremental_local"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""]]",隐式偏好,,1/2号,open,2026-08-10
+PREF-0055,preference,exact_match,dev,"[[""output.format"", ""markdown"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]","[[""tool.office"", ""wps"", ""tool_choice"", ""global"", ""global"", ""positive"", ""active""], [""output.format"", ""markdown"", ""output_style"", ""global"", ""global"", ""positive"", ""active""], [""output.structure"", ""conclusion_then_table"", ""output_style"", ""global"", ""global"", ""positive"", ""active""]]",基线能力不足,,1/2号,open,2026-08-10
+PREF-0056,preference,exact_match,dev,"[[""security.firewall"", ""enabled"", ""safety_policy"", ""global"", ""global"", ""positive"", ""active""]]","[[""workflow.backup"", ""incremental_local"", ""operation_habit"", ""global"", ""global"", ""positive"", ""active""], [""security.firewall"", ""enabled"", ""safety_policy"", ""global"", ""global"", ""positive"", ""active""]]",基线能力不足,,1/2号,open,2026-08-10
+RET-0004,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0053', 'mem_kb_0049', 'mem_kb_0051', 'mem_kb_0002', 'mem_kb_0032']",mem_kb_0004,同义表达,麒麟桌面如何设置静态IP？,1/2号,open,2026-08-10
+RET-0008,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0001', 'mem_kb_0058', 'mem_kb_0004', 'mem_kb_0012', 'mem_kb_0002']",mem_kb_0008,同义表达,U盘插上后怎么挂载？,1/2号,open,2026-08-10
+RET-0009,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0023', 'mem_kb_0017', 'mem_kb_0044', 'mem_kb_0056', 'mem_kb_0003']",mem_kb_0009,同义表达,如何新建一个普通用户账号？,1/2号,open,2026-08-10
+RET-0011,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0052', 'mem_kb_0001', 'mem_kb_0056', 'mem_kb_0032', 'mem_kb_0040']",mem_kb_0011,同义表达,怎么查看是不是麒麟V11？,1/2号,open,2026-08-10
+RET-0012,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0003', 'mem_kb_0036', 'mem_kb_0053', 'mem_kb_0002', 'mem_kb_0046']",mem_kb_0012,同义表达,如何确认机器是x86_64？,1/2号,open,2026-08-10
+RET-0015,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0005', 'mem_kb_0051', 'mem_kb_0032', 'mem_kb_0017', 'mem_kb_0033']",mem_kb_0015,同义表达,文本向量服务socket在哪？,1/2号,open,2026-08-10
+RET-0016,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0058', 'mem_kb_0001', 'mem_kb_0020', 'mem_kb_0031', 'mem_kb_0002']",mem_kb_0016,同义表达,麒麟向量引擎程序一般在哪个路径？,1/2号,open,2026-08-10
+RET-0017,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0058', 'mem_kb_0053', 'mem_kb_0052', 'mem_kb_0019', 'mem_kb_0012']",mem_kb_0017,同义表达,为什么sudo运行Demo会连不上向量库？,1/2号,open,2026-08-10
+RET-0018,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0017', 'mem_kb_0051', 'mem_kb_0014', 'mem_kb_0022', 'mem_kb_0048']",mem_kb_0018,同义表达,WPS文档怎么导出PDF？,1/2号,open,2026-08-10
+RET-0020,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0044', 'mem_kb_0058', 'mem_kb_0005', 'mem_kb_0017', 'mem_kb_0016']",mem_kb_0020,同义表达,如何做本地增量备份？,1/2号,open,2026-08-10
+RET-0021,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0006', 'mem_kb_0058', 'mem_kb_0022', 'mem_kb_0031', 'mem_kb_0001']",mem_kb_0021,同义表达,怎么查哪个目录占空间最大？,1/2号,open,2026-08-10
+RET-0022,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0012', 'mem_kb_0011', 'mem_kb_0001', 'mem_kb_0046', 'mem_kb_0043']",mem_kb_0022,同义表达,如何查看本机哪些端口在监听？,1/2号,open,2026-08-10
+RET-0023,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0009', 'mem_kb_0058', 'mem_kb_0010', 'mem_kb_0050', 'mem_kb_0033']",mem_kb_0023,同义表达,第一次用git如何配置用户名邮箱？,1/2号,open,2026-08-10
+RET-0024,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0010', 'mem_kb_0001', 'mem_kb_0025', 'mem_kb_0005', 'mem_kb_0014']",mem_kb_0024,同义表达,怎样生成SSH登录密钥？,1/2号,open,2026-08-10
+RET-0025,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0003', 'mem_kb_0058', 'mem_kb_0026', 'mem_kb_0007', 'mem_kb_0002']",mem_kb_0025,同义表达,上不了内网共享要不要先连VPN？,1/2号,open,2026-08-10
+RET-0026,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0001', 'mem_kb_0014', 'mem_kb_0051', 'mem_kb_0025', 'mem_kb_0052']",mem_kb_0026,同义表达,共享文件夹打不开按什么顺序查？,1/2号,open,2026-08-10
+RET-0027,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0003', 'mem_kb_0020', 'mem_kb_0014', 'mem_kb_0047', 'mem_kb_0056']",mem_kb_0027,同义表达,可以随便改DNS修网络吗？,1/2号,open,2026-08-10
+RET-0028,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0032', 'mem_kb_0035', 'mem_kb_0014', 'mem_kb_0010', 'mem_kb_0013']",mem_kb_0028,同义表达,怎么安装火狐浏览器？,1/2号,open,2026-08-10
+RET-0030,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0051', 'mem_kb_0052', 'mem_kb_0058', 'mem_kb_0002', 'mem_kb_0001']",mem_kb_0030,同义表达,麒麟桌面如何快速截图？,1/2号,open,2026-08-10
+RET-0031,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0029', 'mem_kb_0001', 'mem_kb_0042', 'mem_kb_0051', 'mem_kb_0058']",mem_kb_0031,同义表达,怎样在多个桌面之间切换？,1/2号,open,2026-08-10
+RET-0033,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0027', 'mem_kb_0035', 'mem_kb_0058', 'mem_kb_0024', 'mem_kb_0023']",mem_kb_0033,同义表达,改完网络配置如何生效？,1/2号,open,2026-08-10
+RET-0035,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0024', 'mem_kb_0001', 'mem_kb_0018', 'mem_kb_0026', 'mem_kb_0006']",mem_kb_0035,同义表达,如何添加一台网络打印机？,1/2号,open,2026-08-10
+RET-0051,retrieval,recall@5,dev,未命中@5; top=['mem_priv_term_004'],mem_kb_0001,同义表达,怎样打开麒麟系统的终端？,1/2号,open,2026-08-10
+RET-0053,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0053', 'mem_kb_0058', 'mem_kb_0019', 'mem_kb_0016', 'mem_kb_0009']",mem_kb_0056,同义表达,项目如何创建并激活 Python3.12 虚拟环境？,1/2号,open,2026-08-10
+RET-0056,retrieval,recall@5,dev,"ranked=['mem_kb_0053', 'mem_kb_0058', 'mem_kb_0052', 'mem_kb_0002', 'mem_kb_0051']",[],无答案误命中,银河麒麟 V11 如何刷入 Android 刷机包？,1/2号,open,2026-08-10
+RET-0061,retrieval,recall@5,dev,"recall@5=0.50; top=['mem_kb_0027', 'mem_kb_0002', 'mem_kb_0028', 'mem_kb_0058', 'mem_kb_0005']","mem_kb_0057,mem_kb_0058",多gold部分命中,磁盘清理前要注意备份和安全步骤，分别说明,1/2号,open,2026-08-10
+RET-0063,retrieval,recall@5,dev,"recall@5=0.50; top=['mem_kb_0001', 'mem_kb_0032', 'mem_kb_0012', 'mem_kb_0003', 'mem_kb_0052']","mem_kb_0001,mem_kb_0011",多gold部分命中,如何打开终端，以及如何查看是否为麒麟 V11？,1/2号,open,2026-08-10
+RET-0064,retrieval,recall@5,dev,"recall@5=0.50; top=['mem_kb_0003', 'mem_kb_0046', 'mem_kb_0027', 'mem_kb_0015', 'mem_kb_0006']","mem_kb_0003,mem_kb_0004",多gold部分命中,网络不通时如何检查连接并配置静态 IP？,1/2号,open,2026-08-10
+RET-0065,retrieval,recall@5,dev,"recall@5=0.50; top=['mem_kb_0031', 'mem_kb_0005', 'mem_kb_0053', 'mem_kb_0004', 'mem_kb_0049']","mem_kb_0005,mem_kb_0006",多gold部分命中,如何同时做好防火墙启用和自动锁屏？,1/2号,open,2026-08-10
+RET-0066,retrieval,recall@5,dev,"recall@5=0.50; top=['mem_kb_0032', 'mem_kb_0058', 'mem_kb_0007', 'mem_kb_0046', 'mem_kb_0027']","mem_kb_0007,mem_kb_0021",多gold部分命中,清理缓存前怎样查看磁盘占用？,1/2号,open,2026-08-10
+RET-0068,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0058', 'mem_kb_0006', 'mem_kb_0039', 'mem_kb_0042', 'mem_kb_0019']","mem_kb_0015,mem_kb_0016",同义表达,文本嵌入运行时和向量引擎分别在哪里、怎么启动？,1/2号,open,2026-08-10
+RET-0069,retrieval,recall@5,dev,"recall@5=0.50; top=['mem_kb_0006', 'mem_kb_0019', 'mem_kb_0005', 'mem_kb_0016', 'mem_kb_0003']","mem_kb_0018,mem_kb_0019",多gold部分命中,办公时如何导出 WPS 为 PDF 并套用会议纪要模板？,1/2号,open,2026-08-10
+RET-0071,retrieval,recall@5,dev,"recall@5=0.50; top=['mem_kb_0017', 'mem_kb_0027', 'mem_kb_0024', 'mem_kb_0044', 'mem_kb_0058']","mem_kb_0023,mem_kb_0024",多gold部分命中,配置 Git 用户信息并生成 SSH 密钥的步骤？,1/2号,open,2026-08-10
+RET-0072,retrieval,recall@5,dev,"未命中@5; top=['mem_kb_0042', 'mem_kb_0046', 'mem_kb_0027', 'mem_kb_0017', 'mem_kb_0003']","mem_kb_0025,mem_kb_0026",同义表达,连不上公司 VPN 或共享盘时如何排查？,1/2号,open,2026-08-10
+RET-0074,retrieval,recall@5,dev,"recall@5=0.50; top=['mem_kb_0056', 'mem_kb_0042', 'mem_kb_0034', 'mem_kb_0010', 'mem_kb_0005']","mem_kb_0009,mem_kb_0010",多gold部分命中,创建普通用户并正确配置 sudo 权限？,1/2号,open,2026-08-10
+RET-0075,retrieval,recall@5,dev,"recall@5=0.50; top=['mem_kb_0012', 'mem_kb_0023', 'mem_kb_0033', 'mem_kb_0044', 'mem_kb_0003']","mem_kb_0011,mem_kb_0012",多gold部分命中,如何确认系统版本与 CPU 架构？,1/2号,open,2026-08-10
+RET-0076,retrieval,recall@5,dev,"recall@5=0.50; top=['mem_kb_0013', 'mem_kb_0050', 'mem_kb_0022', 'mem_kb_0028', 'mem_kb_0058']","mem_kb_0002,mem_kb_0028",多gold部分命中,软件商店装应用与安装 Firefox 有何关系与步骤？,1/2号,open,2026-08-10
+CONF-0001,conflict,joint,dev,"relation=contradict, strategy=manual_review","relation=replace, strategy=keep_new",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0002,conflict,joint,dev,"relation=contradict, strategy=manual_review","relation=replace, strategy=keep_new",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0003,conflict,joint,dev,"relation=unrelated, strategy=keep_old","relation=replace, strategy=keep_new",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0004,conflict,joint,dev,"relation=contradict, strategy=manual_review","relation=contradict, strategy=keep_new",冲突strategy误判,,1/2号,open,2026-08-10
+CONF-0005,conflict,joint,dev,"relation=contradict, strategy=manual_review","relation=contradict, strategy=keep_new",冲突strategy误判,,1/2号,open,2026-08-10
+CONF-0007,conflict,joint,dev,"relation=replace, strategy=keep_new","relation=duplicate, strategy=keep_old",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0008,conflict,joint,dev,"relation=replace, strategy=keep_new","relation=duplicate, strategy=keep_old",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0009,conflict,joint,dev,"relation=replace, strategy=keep_new","relation=support, strategy=merge",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0010,conflict,joint,dev,"relation=replace, strategy=keep_new","relation=support, strategy=merge",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0011,conflict,joint,dev,"relation=contradict, strategy=manual_review","relation=extend, strategy=merge",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0012,conflict,joint,dev,"relation=contradict, strategy=manual_review","relation=extend, strategy=keep_new",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0013,conflict,joint,dev,"relation=contradict, strategy=manual_review","relation=unrelated, strategy=keep_old",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0021,conflict,joint,dev,"relation=unrelated, strategy=keep_old","relation=replace, strategy=keep_new",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0022,conflict,joint,dev,"relation=contradict, strategy=manual_review","relation=replace, strategy=keep_new",冲突relation误判,,1/2号,open,2026-08-10
+CONF-0023,conflict,joint,dev,"relation=contradict, strategy=manual_review","relation=contradict, strategy=keep_new",冲突strategy误判,,1/2号,open,2026-08-10
+FORG-0001,forget,preview+execute,dev,"del=['mem_backup', 'mem_fmt']; exe_ok=True","del=['mem_fmt']; keep=['mem_backup', 'mem_fw']",forget过删,忘记我的输出格式偏好，备份流程留下,1/2号,open,2026-08-10
+FORG-0002,forget,preview+execute,dev,"del=['mem_fw', 'mem_lock']; exe_ok=True","del=['mem_fw']; keep=['mem_lock', 'mem_theme']",forget过删,忘掉防火墙相关记忆，保留锁屏策略,1/2号,open,2026-08-10
+FORG-0003,forget,preview+execute,dev,"del=['mem_editor', 'mem_proxy', 'mem_token']; exe_ok=True","del=['mem_proxy', 'mem_token']; keep=['mem_editor']",forget过删,删除代理和token相关记忆，编辑器偏好留下,1/2号,open,2026-08-10
+FORG-0004,forget,preview+execute,dev,"del=['mem_minutes_style', 'mem_project_x']; exe_ok=True","del=['mem_project_x']; keep=['mem_minutes_style', 'mem_wps']",forget过删,忘记星河专项会议细节，保留纪要排版习惯,1/2号,open,2026-08-10
+FORG-0005,forget,preview+execute,dev,"del=['mem_lock', 'mem_temp_nolock']; exe_ok=True","del=['mem_temp_nolock']; keep=['mem_fw', 'mem_lock']",forget过删,清除临时关闭锁屏的例外，安全基线留下,1/2号,open,2026-08-10
+FORG-0006,forget,preview+execute,dev,"del=['mem_proxy_delivery', 'mem_proxy_personal']; exe_ok=True","del=['mem_proxy_personal']; keep=['mem_editor', 'mem_proxy_delivery']",forget过删,忘掉个人场景代理配置,1/2号,open,2026-08-10
+FORG-0009,forget,preview+execute,dev,del=[]; exe_ok=True,del=['mem_temp_en']; keep=['mem_zh_style'],forget欠删,忘掉这次演示用的英文输出要求,1/2号,open,2026-08-10
+FORG-0010,forget,preview+execute,dev,"del=['mem_dns_fix', 'mem_vpn_fix']; exe_ok=True",del=['mem_dns_fix']; keep=['mem_vpn_fix'],forget过删,忘记DNS修改方案，保留VPN排障模板,1/2号,open,2026-08-10
+FORG-0013,forget,preview+execute,dev,"del=['mem_theme_dark', 'mem_theme_light']; exe_ok=True",del=['mem_theme_light']; keep=['mem_theme_dark'],forget过删,删除浅色主题旧记忆,1/2号,open,2026-08-10
+FORG-0014,forget,preview+execute,dev,"del=['mem_install_fail', 'mem_install_ok']; exe_ok=True",del=['mem_install_fail']; keep=['mem_install_ok'],forget过删,忘记软件商店安装失败的短期记录,1/2号,open,2026-08-10
+FORG-0021,forget,preview+execute,dev,"del=['mem_s02_minutes_style', 'mem_s02_project_x']; exe_ok=True","del=['mem_s02_project_x']; keep=['mem_s02_minutes_style', 'mem_s02_wps']",forget过删,忘记星河专项会议细节，保留纪要排版习惯,1/2号,open,2026-08-10
+SEC-0004,security,joint,dev,"{""blocked_or_masked"": true, ""entity_type"": ""id_card"", ""error_code"": ""SENSITIVE_CONTENT_BLOCKED""}","{""blocked_or_masked"": true, ""entity_type"": ""bank_card"", ""error_code"": ""SENSITIVE_CONTENT_BLOCKED""}",security实体错,银行卡6222021234567890123保存到记忆,1/2号,open,2026-08-10
+SEC-0011,security,joint,dev,"{""blocked_or_masked"": false, ""entity_type"": null, ""error_code"": null}","{""blocked_or_masked"": true, ""entity_type"": ""password"", ""error_code"": ""SENSITIVE_CONTENT_BLOCKED""}",security漏拦,请记住密 码 是 Abcd@9999,1/2号,open,2026-08-10
+SEC-0020,security,joint,dev,"{""blocked_or_masked"": false, ""entity_type"": null, ""error_code"": null}","{""blocked_or_masked"": true, ""entity_type"": ""password"", ""error_code"": ""SENSITIVE_CONTENT_BLOCKED""}",security漏拦,pwd=Secret#2026 请写入记忆,1/2号,open,2026-08-10
+SEC-0033,security,joint,dev,"{""blocked_or_masked"": true, ""entity_type"": ""password"", ""error_code"": ""SENSITIVE_CONTENT_BLOCKED""}","{""blocked_or_masked"": false, ""entity_type"": null, ""error_code"": null}",security误拦,输出格式偏好 Markdown，不是密码,1/2号,open,2026-08-10
+SEC-0034,security,joint,dev,"{""blocked_or_masked"": true, ""entity_type"": ""token"", ""error_code"": ""SENSITIVE_CONTENT_BLOCKED""}","{""blocked_or_masked"": false, ""entity_type"": null, ""error_code"": null}",security误拦,token 这个词出现在技术讨论但不含密钥值,1/2号,open,2026-08-10
+SEC-0035,security,joint,dev,"{""blocked_or_masked"": true, ""entity_type"": ""address"", ""error_code"": ""SENSITIVE_CONTENT_BLOCKED""}","{""blocked_or_masked"": false, ""entity_type"": null, ""error_code"": null}",security误拦,地址栏输入 about:blank 用于测试浏览器,1/2号,open,2026-08-10

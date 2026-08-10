@@ -214,7 +214,7 @@ def write_evaluation_report_md(path: Path, summary: dict[str, Any]) -> None:
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--split", default="dev", choices=["dev", "held_out", "all"])
+    p.add_argument("--split", default="dev", choices=["dev", "validation", "final_test", "held_out", "all"])
     p.add_argument("--tasks", default="preference,retrieval,conflict,forget,security,latency")
     p.add_argument("--out", default=None, help="optional raw txt snapshot path")
     args = p.parse_args()

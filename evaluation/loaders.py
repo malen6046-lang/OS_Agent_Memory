@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Load Dataset V0.1 JSONL under evaluation/dataset/."""
+"""Load Dataset JSONL under evaluation/dataset/."""
 from __future__ import annotations
 
 import json
@@ -17,7 +17,11 @@ FILES = {
     "security": "security.jsonl",
 }
 
-# Minimal required fields for Dataset V0.1 integrity checks (8_4 P2).
+# Official splits (4号下周安排建议). Legacy alias: held_out -> validation.
+SPLITS = ("dev", "validation", "final_test")
+SPLIT_ALIASES = {"held_out": "validation"}
+
+# Minimal required fields for integrity checks (8_4 P2).
 REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "preference": ("case_id", "user_id", "split", "expected"),
     "corpus": ("memory_id", "user_id", "content_text"),
@@ -35,6 +39,12 @@ ID_FIELD: dict[str, str] = {
     "forget": "case_id",
     "security": "case_id",
 }
+
+
+def normalize_split(split: str | None) -> str | None:
+    if split is None or split == "all":
+        return split
+    return SPLIT_ALIASES.get(split, split)
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -70,6 +80,10 @@ def validate_rows(task: str, rows: list[dict[str, Any]]) -> list[str]:
         for field in required:
             if field not in row:
                 errors.append(f"row[{i}]: missing field '{field}'")
+        if task != "corpus" and "split" in row:
+            sp = row.get("split")
+            if sp not in SPLITS and sp != "held_out":
+                errors.append(f"row[{i}]: invalid split={sp!r}")
         cid = row.get(id_key)
         if cid is None or cid == "":
             errors.append(f"row[{i}]: empty {id_key}")
@@ -91,7 +105,8 @@ def load_cases(task: str, *, split: str | None = "dev") -> list[dict[str, Any]]:
     rows = load_jsonl(path)
     if task in {"corpus"} or not split or split == "all":
         return rows
-    return [r for r in rows if r.get("split") == split]
+    want = normalize_split(split)
+    return [r for r in rows if normalize_split(r.get("split")) == want]
 
 
 def load_corpus() -> list[dict[str, Any]]:

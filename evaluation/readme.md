@@ -21,8 +21,15 @@ evaluation/
 ```bash
 cd OS_Agent_Memory-evaluation-dataset
 python3.12 -m evaluation.run_all --split dev
+python3.12 -m evaluation.run_all --split validation
+python3.12 -m evaluation.check_freeze
 python3.12 -m pytest tests/unit/evaluation -q
 ```
+
+数据三分法与冻结：`dataset/SPLIT_POLICY.md`。  
+Ground Truth 检查：`python -m evaluation.check_ground_truth` → `GT检查报告.md`。  
+失败归因：`python -m evaluation.collect_failures --split dev` → `失败案例归因表.md` + `reports/failure_attribution.csv`。  
+E2E 清单：`python -m evaluation.check_e2e_ready` → `E2E跑通清单.md`。
 
 报告写入：
 - `evaluation/reports/v0.1_<split>.txt`（原始快照）
