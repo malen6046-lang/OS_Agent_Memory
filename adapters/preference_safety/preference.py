@@ -16,6 +16,9 @@ from contracts.schemas.preference import PreferenceCandidate, PreferenceRecord
 from modules.preference_safety.algorithm_v1_1.preference_service import (
     PreferenceService as LegacyPreferenceService,
 )
+from modules.preference_safety.preference_extractor_v1_2 import (
+    enhance_candidates,
+)
 
 from ._common import envelope_payload_text
 
@@ -29,6 +32,9 @@ class PreferenceServiceAdapter:
         *,
         legacy_factory: Callable[[], Any] = LegacyPreferenceService,
     ) -> None:
+        self._enhance_extraction = (
+            legacy_service is None and legacy_factory is LegacyPreferenceService
+        )
         self._extractor = legacy_service or legacy_factory()
         self._legacy_factory = (
             (lambda: legacy_service)
@@ -56,9 +62,12 @@ class PreferenceServiceAdapter:
         ]
         with self._lock:
             raw_candidates = self._extractor.extract(raw_events)
+        validated_raw = _raw_list(raw_candidates, "extract")
+        if self._enhance_extraction:
+            validated_raw = enhance_candidates(raw_events, validated_raw)
         return [
             _candidate_from_raw(raw_candidate)
-            for raw_candidate in _raw_list(raw_candidates, "extract")
+            for raw_candidate in validated_raw
         ]
 
     def upsert(

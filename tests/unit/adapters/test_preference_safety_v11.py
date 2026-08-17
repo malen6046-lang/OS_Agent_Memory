@@ -196,15 +196,15 @@ def test_preference_factory_runs_the_real_legacy_methods():
 
     candidates = service.extract([_envelope()])
     theme = next(
-        item for item in candidates if item.preference_key == "theme"
+        item for item in candidates if item.preference_key == "ui.theme"
     )
     record = service.upsert([theme])[0]
 
     assert isinstance(theme, PreferenceCandidate)
     assert isinstance(record, PreferenceRecord)
     assert record.value == "dark"
-    assert service.resolve("usr_1", "desktop", ["theme"])[0].value == "dark"
-    assert service.history("usr_1", "theme")[0].revision == 1
+    assert service.resolve("usr_1", "desktop", ["ui.theme"])[0].value == "dark"
+    assert service.history("usr_1", "ui.theme")[0].revision == 1
 
 
 def _preference_candidate(

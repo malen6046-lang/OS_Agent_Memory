@@ -10,6 +10,9 @@
 | `run_evaluation.sh` | 运行 Dataset V0.1 评测，报告写入 `evaluation/reports/` |
 | `init_db.sh` | 初始化配置的 SQLite 数据库与 ORM 表 |
 | `check_kylin_env.sh` | 麒麟实机前置检查（CPython 3.12 / 依赖 / 可选组件 / 健康检查） |
+| `benchmark_kylin_sdk.py` | 麒麟 Embedding/Vector SDK 实机 P50/P95/P99 性能基线 |
+| `benchmark_kylin_api.py` | 真实麒麟 Provider 的 HTTP 写入/搜索/遗忘端到端基线 |
+| `evaluate_kylin_retrieval.py` | Dataset V0.1 上的真实麒麟 Dense/Hybrid Recall@K 与 MRR |
 
 Windows 等价命令：
 

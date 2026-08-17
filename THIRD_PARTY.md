@@ -116,19 +116,19 @@
 
 - Source: kylin-coreai-embedding-openkylin-nile-sp2
 - License: GPLv3-or-later
-- Usage: KylinEmbeddingProvider 主线 (待麒麟目标机接入)
+- Usage: KylinEmbeddingProvider 主线
 - Integration type: System package (libkysdk-coreai-embedding.so)
 - Modified source: No
-- Project location: adapters/embedding/kylin_provider/ (待实现)
+- Project location: adapters/embedding/kylin_provider/
 - Maintainer: 算法负责人
 
 ## libkysdk-vector-engine-client (麒麟 SDK)
 
 - Source: libkysdk-vector-engine-client-openkylin-nile-sp2
 - License: Apache-2.0 (修改自 Milvus C++ SDK)
-- Usage: KylinVectorStoreAdapter 主线 (待麒麟目标机接入)
-- Integration type: System package (libkysdk-vector-engine-client.so)
-- Modified source: No
-- Project location: adapters/vector_store/kylin_vector_store/ (待实现)
+- Usage: KylinVectorStoreAdapter 主线
+- Integration type: System package + local C ABI bridge
+- Modified source: No (SDK); Yes (project-owned bridge)
+- Project location: adapters/vector_store/kylin_vector_store/
 - Maintainer: 算法负责人
  main

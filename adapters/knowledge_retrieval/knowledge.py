@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+from pathlib import Path
 from typing import Any
 
 from contracts.schemas.common import (
@@ -20,6 +22,9 @@ from modules.knowledge_retrieval.algorithm_v1_1.conflict_classifier import (
 )
 from modules.knowledge_retrieval.algorithm_v1_1.knowledge_service import (
     KnowledgeService as LegacyKnowledgeService,
+)
+from modules.knowledge_retrieval.conflict_classifier_v1_2 import (
+    StructuredConflictClassifier,
 )
 
 from .runtime import KnowledgeRetrievalRuntime
@@ -44,12 +49,13 @@ class KnowledgeServiceAdapter:
         config: Any = None,
         app_config: Any = None,
     ) -> None:
-        del config, app_config
+        del config
         self.runtime = KnowledgeRetrievalRuntime(
             embedding_provider,
             vector_store,
+            bm25_state_path=_bm25_state_path(app_config),
         )
-        self._classifier = ConflictClassifier()
+        self._classifier = StructuredConflictClassifier(ConflictClassifier())
         self._legacy_conflict_applier = LegacyKnowledgeService(
             None,
             None,
@@ -74,7 +80,7 @@ class KnowledgeServiceAdapter:
                     validated_preferences,
                     index,
                 )
-                self.runtime.bm25.index([_bm25_document(record)])
+                self.runtime.index_bm25([_bm25_document(record)])
                 self._records[record.memory_id] = record
                 records.append(record)
         return IngestResult(records=records, conflicts=[])
@@ -86,18 +92,7 @@ class KnowledgeServiceAdapter:
     ) -> ConflictDecision:
         old = MemoryRecord.model_validate(old)
         new = MemoryRecord.model_validate(new)
-        old_meta = old.model_dump(mode="python")
-        new_meta = new.model_dump(mode="python")
-        raw = self._classifier.classify(
-            new.content_text,
-            new_meta,
-            [
-                {
-                    "score": 1.0,
-                    "meta": old_meta,
-                }
-            ],
-        )
+        raw = self._classifier.classify(old, new)
         relation = str(raw.get("relation", "unrelated"))
         strategy = str(raw.get("strategy", "manual_review"))
         reasons = raw.get("reasons", raw.get("reason_codes", []))
@@ -248,6 +243,19 @@ def _bm25_document(record: MemoryRecord) -> dict[str, Any]:
         "memory_kind": record.memory_kind.value,
         "status": record.status.value,
     }
+
+
+def _bm25_state_path(app_config: Any) -> Path | None:
+    explicit = os.getenv("OS_AGENT_BM25_STATE")
+    if explicit:
+        return Path(explicit)
+    if app_config is None:
+        return None
+    storage = getattr(app_config, "storage", None)
+    data_dir = getattr(storage, "data_dir", None)
+    if data_dir is None:
+        return None
+    return Path(data_dir).expanduser() / "bm25_index.json"
 
 
 def _subtype(value: Any) -> MemorySubtype:

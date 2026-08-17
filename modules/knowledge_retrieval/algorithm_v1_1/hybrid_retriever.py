@@ -1,4 +1,4 @@
-"""HybridRetriever — dense向量 + BM25 用 RRF 融合，向量不可用时降级为 BM25。"""
+"""Dense-first retrieval with BM25 fallback for provider failures."""
 from __future__ import annotations
 import time
 from typing import Any
@@ -43,8 +43,6 @@ class HybridRetriever:
             raise ValueError("user_id is required for search")
         self._degraded = False
 
-        sparse = self._bm25.search(query, top_k=candidate_k, filter_user_id=uid, filter_status="active")
-
         dense: list[dict] = []
         try:
             health = self._emb.health()
@@ -68,12 +66,23 @@ class HybridRetriever:
         except Exception:
             self._degraded = True
 
-        if dense:
-            final = self._rrf(dense, sparse, top_k)
-        else:
-            self._degraded = True
+        sparse: list[dict] = []
+        if self._degraded:
+            sparse = self._bm25.search(
+                query,
+                top_k=candidate_k,
+                filter_user_id=uid,
+                filter_status="active",
+            )
             final = [{"doc_id": s["doc_id"], "memory_id": s["meta"].get("memory_id", s["doc_id"]),
                        "score": s["score"], "meta": s["meta"]} for s in sparse[:top_k]]
+            retrieval_mode = "bm25_fallback"
+        else:
+            # Dataset V0.1 dev shows the Kylin GTE dense ranking outperforms
+            # every tested RRF dense/BM25 weighting. Preserve the SDK score
+            # and ranking whenever the dense providers complete successfully.
+            final = dense[:top_k]
+            retrieval_mode = "dense"
 
         items = []
         for entry in final:
@@ -105,6 +114,7 @@ class HybridRetriever:
                 "degraded": self._degraded,
                 "embedding_provider": emb_provider if not self._degraded else "none",
                 "vector_provider": vs_provider,
+                "retrieval_mode": retrieval_mode,
                 "candidate_count": len(sparse) + len(dense),
             },
         }

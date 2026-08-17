@@ -26,6 +26,7 @@ data/reports/*
 !evaluation/reports/
 evaluation/reports/*
 !evaluation/reports/.gitkeep
+!evaluation/reports/kylin_sdk_algorithm_final_acceptance.md
 
 .env
 .env.*

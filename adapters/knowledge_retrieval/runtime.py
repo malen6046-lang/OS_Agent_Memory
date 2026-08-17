@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
 from threading import RLock
 from typing import Any, Mapping
 
@@ -97,16 +100,127 @@ class AlgorithmVectorQueryBridge:
 class KnowledgeRetrievalRuntime:
     """One application-scoped donor BM25/retriever assembly."""
 
-    def __init__(self, embedding_provider: Any, vector_store: Any) -> None:
+    def __init__(
+        self,
+        embedding_provider: Any,
+        vector_store: Any,
+        *,
+        bm25_state_path: str | os.PathLike[str] | None = None,
+    ) -> None:
         self.lock = RLock()
         self.embedding = AlgorithmEmbeddingBridge(embedding_provider)
         self.vector = AlgorithmVectorQueryBridge(vector_store)
         self.bm25 = BM25Retriever()
+        self._bm25_state = (
+            _BM25State(Path(bm25_state_path))
+            if bm25_state_path is not None
+            else None
+        )
+        if self._bm25_state is not None:
+            documents = self._bm25_state.load()
+            if documents:
+                self.bm25.index(documents)
         self.hybrid = LegacyHybridRetriever(
             self.embedding,
             self.vector,
             self.bm25,
         )
+
+    def index_bm25(self, documents: list[dict[str, Any]]) -> None:
+        """Index documents and persist the process-local sparse state."""
+        self.bm25.index(documents)
+        if self._bm25_state is not None:
+            self._bm25_state.upsert(documents)
+
+    def remove_bm25(self, memory_ids: list[str]) -> None:
+        """Drop repository-confirmed stale candidates from sparse state."""
+        unique_ids = list(dict.fromkeys(memory_ids))
+        for memory_id in unique_ids:
+            self.bm25.remove(memory_id)
+        if self._bm25_state is not None:
+            self._bm25_state.remove(unique_ids)
+
+
+class _BM25State:
+    """Persist only the minimal documents needed to rebuild donor BM25."""
+
+    _VERSION = 1
+    _FIELDS = (
+        "doc_id",
+        "text",
+        "content_text",
+        "user_id",
+        "memory_kind",
+        "status",
+    )
+
+    def __init__(self, path: Path) -> None:
+        self.path = path.expanduser().resolve()
+        self._documents: dict[str, dict[str, Any]] = {}
+
+    def load(self) -> list[dict[str, Any]]:
+        if not self.path.exists():
+            return []
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise RuntimeError(
+                f"cannot load BM25 state {self.path}: {exc}"
+            ) from exc
+        if not isinstance(payload, Mapping) or payload.get("version") != self._VERSION:
+            raise RuntimeError(f"unsupported BM25 state format: {self.path}")
+        documents = payload.get("documents")
+        if not isinstance(documents, list):
+            raise RuntimeError(f"invalid BM25 documents: {self.path}")
+        for raw in documents:
+            document = self._validate(raw)
+            self._documents[document["doc_id"]] = document
+        return list(self._documents.values())
+
+    def upsert(self, documents: list[dict[str, Any]]) -> None:
+        for raw in documents:
+            document = self._validate(raw)
+            self._documents[document["doc_id"]] = document
+        self._write()
+
+    def remove(self, memory_ids: list[str]) -> None:
+        changed = False
+        for memory_id in memory_ids:
+            if self._documents.pop(memory_id, None) is not None:
+                changed = True
+        if changed:
+            self._write()
+
+    def _write(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if os.name == "posix":
+            self.path.parent.chmod(0o700)
+        temporary = self.path.with_name(f".{self.path.name}.tmp")
+        payload = {
+            "version": self._VERSION,
+            "documents": list(self._documents.values()),
+        }
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        if os.name == "posix":
+            temporary.chmod(0o600)
+        os.replace(temporary, self.path)
+
+    def _validate(self, raw: Any) -> dict[str, Any]:
+        if not isinstance(raw, Mapping):
+            raise RuntimeError("BM25 document must be a mapping")
+        document = {field: raw.get(field) for field in self._FIELDS}
+        doc_id = document["doc_id"]
+        if not isinstance(doc_id, str) or not doc_id.strip():
+            raise RuntimeError("BM25 document requires a non-empty doc_id")
+        for field in ("text", "content_text", "user_id", "memory_kind", "status"):
+            value = document[field]
+            if not isinstance(value, str):
+                raise RuntimeError(f"BM25 document {field} must be a string")
+        document["doc_id"] = doc_id.strip()
+        return document
 
 
 def _dump(value: Any) -> dict[str, Any]:

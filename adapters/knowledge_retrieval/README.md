@@ -13,8 +13,13 @@ own repository/vector/audit side effects.
 
 Search candidates are always hydrated through `MemoryRepository.get_by_ids`
 with the requesting user and `active` status. Vector or BM25 metadata is never
-treated as authoritative.
+treated as authoritative. Raw embedding vectors remain internal to persistence
+and vector operations and are removed from public search-result attributes.
 
-The BM25 index is process-local. It is updated while the knowledge adapter
-builds records and may contain a stale candidate if the later repository
-commit fails; repository hydration prevents such candidates from escaping.
+The BM25 index is rebuilt at startup from a minimal JSON state file in the
+configured storage directory (`bm25_index.json`). The state contains only
+BM25 document fields, never embedding vectors. Set `OS_AGENT_BM25_STATE` to
+override its location. The index is updated while the knowledge adapter builds
+records and may contain a stale candidate if the later repository commit
+fails; repository hydration prevents such candidates from escaping and prunes
+them from both the live BM25 index and the persisted state.
