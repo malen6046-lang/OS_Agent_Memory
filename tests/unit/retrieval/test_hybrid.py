@@ -60,23 +60,23 @@ class TestHybrid:
         _index(bm, vs, [{"doc_id":"d0","text":"银河麒麟终端快捷键Ctrl+Alt+T","user_id":"u1"},
                         {"doc_id":"d1","text":"深色主题切换在设置外观中","user_id":"u1"}])
         r = hr.search({"query":"怎样打开终端","user_id":"u1","top_k":3})
-        assert len(r["items"]) > 0 and r["meta"]["degraded"] is False
+        assert len(r["results"]) > 0 and r["meta"]["degraded"] is False
 
     def test_degraded(self):
         emb = FailingEmb(4); vs = MemoryVectorStore(4); bm = BM25Retriever()
         _index(bm, vs, [{"doc_id":"d0","text":"麒麟系统终端快捷键","user_id":"u1"}])
         hr = HybridRetriever(emb, vs, bm)
         r = hr.search({"query":"终端","user_id":"u1","top_k":3})
-        assert r["meta"]["degraded"] is True and len(r["items"]) > 0
+        assert r["meta"]["degraded"] is True and len(r["results"]) > 0
 
     def test_user_isolation(self):
         hr, _, vs, bm = _build()
         _index(bm, vs, [{"doc_id":"d0","text":"A终端笔记","user_id":"uA"},
                         {"doc_id":"d1","text":"B终端笔记","user_id":"uB"}])
         r = hr.search({"query":"终端","user_id":"uA","top_k":5})
-        assert all("d1" not in rr["memory_id"] for rr in r["items"])
+        assert all("d1" not in rr["memory_id"] for rr in r["results"])
 
     def test_top_k(self):
         hr, _, vs, bm = _build()
         _index(bm, vs, [{"doc_id":f"d{i}","text":f"测试文档{i}","user_id":"u"} for i in range(10)])
-        assert len(hr.search({"query":"测试","user_id":"u","top_k":3})["items"]) == 3
+        assert len(hr.search({"query":"测试","user_id":"u","top_k":3})["results"]) == 3

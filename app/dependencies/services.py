@@ -7,37 +7,34 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.core.config import AppConfig, VectorStoreConfig
+from app.core.config import AppConfig
 from app.orchestrator import MemoryOrchestrator
 from app.orchestrator.ports import (
+    AuditRepository,
+    EvaluationService,
     ForgetService,
+    IdempotencyRepository,
     KnowledgeService,
+    MemoryRepository,
     PreferenceService,
     Retriever,
 )
-from modules.knowledge_retrieval.async_adapter import (
-    AsyncHybridRetrieverAdapter,
-    AsyncKnowledgeServiceAdapter,
-)
-from modules.knowledge_retrieval.service_factory import (
-    build_knowledge_retrieval_services,
-)
-from modules.preference_safety.async_adapter import (
-    AsyncForgetServiceAdapter,
-    AsyncPreferenceServiceAdapter,
-    AsyncSafetyServiceAdapter,
-)
+from contracts.schemas.provider import VectorStoreConfig
 
 from .errors import ServiceLifecycleError, ServiceStartupError
 from .mock_services import (
     FallbackEmbeddingProvider,
     FallbackVectorStoreAdapter,
     MockEmbeddingProvider,
+    MockEvaluationService,
     MockForgetService,
+    MockIdempotencyRepository,
     MockKnowledgeService,
+    MockMemoryRepository,
     MockPreferenceService,
     MockRetriever,
     MockSafetyService,
+    MockAuditRepository,
     MockVectorStoreAdapter,
 )
 
@@ -54,7 +51,15 @@ class ServiceContainer:
     embedding_provider: Any = None
     vector_store: Any = None
     vector_store_config: VectorStoreConfig | None = None
+    memory_repository: MemoryRepository | None = None
+    idempotency_repository: IdempotencyRepository | None = None
+    audit_repository: AuditRepository | None = None
+    evaluation_service: EvaluationService | None = None
+    fallback_retriever: Retriever | None = None
     mode: str = "mock"
+    dependency_timeouts: dict[str, float] = field(
+        default_factory=lambda: {"default": 0.5}
+    )
     _started_providers: list[Any] = field(default_factory=list, init=False)
 
     @property
@@ -114,67 +119,165 @@ class ServiceContainer:
 def build_service_container(config: AppConfig) -> ServiceContainer:
     """Build one service instance per application from validated config."""
     mode = config.services.mode
+    embedding_provider = _build_embedding_provider(config)
+    vector_store = _build_vector_store(config)
 
     if mode == "mock":
-        preference_service = MockPreferenceService()
-        safety_service = MockSafetyService()
-        forget_service = MockForgetService()
-        knowledge_service = MockKnowledgeService()
-        embedding_provider = _build_embedding_provider(config)
-        vector_store = _build_vector_store(config)
-        retriever = MockRetriever(
+        memory_repository = _load_optional(
+            "MemoryRepository",
+            config.services.memory_repository_implementation,
+            MockMemoryRepository,
+            config=config,
+        )
+        idempotency_repository = _load_optional(
+            "IdempotencyRepository",
+            config.services.idempotency_repository_implementation,
+            MockIdempotencyRepository,
+            config=config,
+        )
+        audit_repository = _load_optional(
+            "AuditRepository",
+            config.services.audit_repository_implementation,
+            MockAuditRepository,
+            config=config,
+        )
+        evaluation_service = MockEvaluationService()
+        preference_service = _load_optional(
+            "PreferenceService",
+            config.services.preference_implementation,
+            MockPreferenceService,
+            config=config,
+            app_config=config,
+        )
+        safety_service = _load_optional(
+            "SafetyService",
+            config.services.safety_implementation,
+            MockSafetyService,
+            config=config,
+            app_config=config,
+        )
+        knowledge_service = _load_optional(
+            "KnowledgeService",
+            config.services.knowledge_implementation,
+            MockKnowledgeService,
             embedding_provider=embedding_provider,
             vector_store=vector_store,
+            memory_repository=memory_repository,
+            config=config.retrieval,
+            app_config=config,
         )
-    elif _has_explicit_service_implementations(config):
+        if config.services.retriever_implementation:
+            retriever = _load_required(
+                "HybridRetriever",
+                config.services.retriever_implementation,
+                knowledge_service=knowledge_service,
+                embedding_provider=embedding_provider,
+                vector_store=vector_store,
+                memory_repository=memory_repository,
+                config=config.retrieval,
+                app_config=config,
+            )
+        else:
+            retriever = MockRetriever(
+                embedding_provider=embedding_provider,
+                vector_store=vector_store,
+                memory_repository=memory_repository,
+            )
+        fallback_retriever = None
+        forget_service = _load_optional(
+            "ForgetService",
+            config.services.forget_implementation,
+            MockForgetService,
+            retriever=retriever,
+            config=config,
+            app_config=config,
+        )
+    else:
+        memory_repository = _load_required(
+            "MemoryRepository",
+            config.services.memory_repository_implementation,
+            config=config,
+        )
+        idempotency_repository = _load_required(
+            "IdempotencyRepository",
+            config.services.idempotency_repository_implementation,
+            config=config,
+        )
+        audit_repository = _load_required(
+            "AuditRepository",
+            config.services.audit_repository_implementation,
+            config=config,
+        )
+        evaluation_service = _load_required(
+            "EvaluationService",
+            config.services.evaluation_implementation,
+            config=config,
+        )
         preference_service = _load_required(
             "PreferenceService",
             config.services.preference_implementation,
             config=config,
+            app_config=config,
         )
         safety_service = _load_required(
             "SafetyService",
             config.services.safety_implementation,
             config=config,
-        )
-        forget_service = _load_required(
-            "ForgetService",
-            config.services.forget_implementation,
-            config=config,
+            app_config=config,
         )
         knowledge_service = _load_required(
             "KnowledgeService",
             config.services.knowledge_implementation,
-            config=config,
-        )
-        embedding_provider = _build_embedding_provider(config)
-        vector_store = _build_vector_store(config)
-        retriever = _load_required(
-            "HybridRetriever",
-            config.services.retriever_implementation,
             embedding_provider=embedding_provider,
             vector_store=vector_store,
+            memory_repository=memory_repository,
             config=config.retrieval,
             app_config=config,
         )
-    else:
-        algorithm = build_knowledge_retrieval_services(config)
-        embedding_provider = algorithm["embedding_provider"]
-        vector_store = algorithm["vector_store"]
-        knowledge_service = AsyncKnowledgeServiceAdapter(
-            algorithm["knowledge_service"]
-        )
-        retriever = AsyncHybridRetrieverAdapter(algorithm["hybrid_retriever"])
-        preference_service = AsyncPreferenceServiceAdapter(
-            algorithm["preference_service"]
-        )
-        safety_service = AsyncSafetyServiceAdapter(algorithm["safety_service"])
-        forget_service = AsyncForgetServiceAdapter(
-            algorithm["forget_service"],
-            retriever=algorithm["hybrid_retriever"],
+        retriever = _load_required(
+            "HybridRetriever",
+            config.services.retriever_implementation,
+            knowledge_service=knowledge_service,
+            embedding_provider=embedding_provider,
             vector_store=vector_store,
-            metadata_store=algorithm["knowledge_service"]._meta,
+            memory_repository=memory_repository,
+            config=config.retrieval,
+            app_config=config,
         )
+        fallback_retriever = None
+        if config.services.fallback_retriever_implementation:
+            fallback_retriever = _load_required(
+                "Fallback HybridRetriever",
+                config.services.fallback_retriever_implementation,
+                knowledge_service=knowledge_service,
+                embedding_provider=embedding_provider,
+                vector_store=vector_store,
+                memory_repository=memory_repository,
+                config=config.retrieval,
+                app_config=config,
+            )
+        forget_service = _load_required(
+            "ForgetService",
+            config.services.forget_implementation,
+            retriever=retriever,
+            config=config,
+            app_config=config,
+        )
+
+    vector_provider = config.vector_store.provider.strip().lower()
+    contract_vector_provider = {
+        "mock": "memory",
+        "memory": "memory",
+        "fallback": "faiss",
+        "faiss": "faiss",
+        "kylin": "kylin",
+    }[vector_provider]
+    vector_store_config = VectorStoreConfig(
+        provider=contract_vector_provider,
+        collection_name=config.vector_store.collection_name,
+        expected_dimension=config.vector_store.expected_dimension,
+        metric=config.vector_store.metric,
+    )
 
     return ServiceContainer(
         preference_service=preference_service,
@@ -184,21 +287,14 @@ def build_service_container(config: AppConfig) -> ServiceContainer:
         embedding_provider=embedding_provider,
         vector_store=vector_store,
         retriever=retriever,
-        vector_store_config=config.vector_store,
+        vector_store_config=vector_store_config,
+        memory_repository=memory_repository,
+        idempotency_repository=idempotency_repository,
+        audit_repository=audit_repository,
+        evaluation_service=evaluation_service,
+        fallback_retriever=fallback_retriever,
         mode=mode,
-    )
-
-
-def _has_explicit_service_implementations(config: AppConfig) -> bool:
-    services = config.services
-    return any(
-        (
-            services.preference_implementation,
-            services.safety_implementation,
-            services.forget_implementation,
-            services.knowledge_implementation,
-            services.retriever_implementation,
-        )
+        dependency_timeouts=dict(config.services.dependency_timeouts),
     )
 
 
@@ -216,7 +312,7 @@ def build_mock_container() -> ServiceContainer:
         app=ApplicationConfig(name="os-agent-memory", version="1.0.0"),
         storage=StorageConfig(data_dir=".", sqlite_file="memory.db"),
         embedding=EmbeddingConfig(provider="mock", model_name="default"),
-        vector_store=VectorStoreConfig(provider="mock"),
+        vector_store={"provider": "mock"},
         retrieval=RetrievalConfig(top_k_default=5, candidate_k=30),
         logging=LoggingConfig(level="INFO"),
     )
@@ -232,6 +328,14 @@ def get_memory_orchestrator(
         knowledge_service=services.knowledge_service,
         retriever=services.retriever,
         forget_service=services.forget_service,
+        safety_service=services.safety_service,
+        idempotency_repository=services.idempotency_repository,
+        repository=services.memory_repository,
+        vector_store=services.vector_store,
+        audit_repository=services.audit_repository,
+        evaluation_service=services.evaluation_service,
+        fallback_retriever=services.fallback_retriever,
+        timeout_seconds=services.dependency_timeouts,
     )
 
 
@@ -304,6 +408,17 @@ def _load_required(
             f"cannot create {component_name} from {implementation!r}: "
             f"{type(exc).__name__}: {exc}"
         ) from exc
+
+
+def _load_optional(
+    component_name: str,
+    implementation: str | None,
+    default_factory: Any,
+    **dependencies: Any,
+) -> Any:
+    if implementation is None:
+        return default_factory()
+    return _load_required(component_name, implementation, **dependencies)
 
 
 def _instantiate(factory: Any, dependencies: dict[str, Any]) -> Any:

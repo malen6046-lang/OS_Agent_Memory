@@ -1,5 +1,29 @@
 embedding:
   provider: kylin
+  model_name: ensemble-embd_gte-base_uint8-text
+  implementation: adapters.embedding.kylin_provider:KylinEmbeddingProvider
 
 vector_store:
   provider: kylin
+  implementation: adapters.vector_store.kylin_vector_store:KylinVectorStoreAdapter
+  collection_name: os_agent_memory
+  expected_dimension: 768
+  metric: cosine
+
+services:
+  mode: mock
+  dependency_timeouts:
+    default: 0.5
+    knowledge_service.ingest: 30.0
+    hybrid_retriever.search: 30.0
+    vector_store.upsert: 5.0
+    vector_store.delete: 5.0
+  preference_implementation: adapters.preference_safety.preference:build_preference_service
+  safety_implementation: adapters.preference_safety.safety:build_safety_service
+  forget_implementation: adapters.preference_safety.forget:build_forget_service
+  knowledge_implementation: adapters.knowledge_retrieval.knowledge:build_knowledge_service
+  retriever_implementation: adapters.knowledge_retrieval.retrieval:build_hybrid_retriever
+  memory_repository_implementation: repositories.sqlite:SQLiteMemoryRepository
+  idempotency_repository_implementation: repositories.sqlite:SQLiteIdempotencyRepository
+  audit_repository_implementation: repositories.sqlite:SQLiteAuditRepository
+  evaluation_implementation: adapters.evaluation.offline_service:build_evaluation_service

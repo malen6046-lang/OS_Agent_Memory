@@ -1,1 +1,1 @@
-"""Project administration scripts."""
+"""Operational command modules for OS Agent Memory."""

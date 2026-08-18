@@ -4,32 +4,23 @@ Implements the VectorStoreAdapter protocol from V1.1.
 """
 from __future__ import annotations
 
-import math
+import numpy as np
 
 
 class MemoryVectorStore:
     def __init__(self, dim: int = 768):
-        if dim <= 0:
-            raise ValueError(f"dimension must be positive, got {dim}")
         self._dim = dim
         self._vectors: dict[int, list[float]] = {}
         self._meta: dict[int, dict] = {}
-        self._started = False
 
     def start(self, config: dict | None = None) -> dict:
-        if hasattr(config, "model_dump"):
-            config = config.model_dump()
         if config:
-            d = config.get("dim") or config.get("dimension")
-            if d is not None and d > 0:
-                self._dim = d
-        self._started = True
+            self._dim = config.get("dim", config.get("dimension", self._dim))
         return {"provider": "memory", "dimension": self._dim, "status": "healthy"}
 
     def close(self) -> None:
         self._vectors.clear()
         self._meta.clear()
-        self._started = False
 
     def ensure_collection(self, spec: dict) -> None:
         if "dim" in spec:
@@ -42,21 +33,8 @@ class MemoryVectorStore:
         errors: list[dict] = []
         for idx, item in enumerate(items):
             try:
-                pk = item.get("vector_pk")
-                if pk is None:
-                    raise ValueError("vector_pk required")
-                vec = item.get("vector")
-                if vec is None or len(vec) == 0:
-                    raise ValueError("vector must not be empty")
-                if len(vec) != self._dim:
-                    raise ValueError(f"dimension mismatch: expected {self._dim}, got {len(vec)}")
-                uid = item.get("user_id", "").strip()
-                if not uid:
-                    raise ValueError("user_id required")
-                st = item.get("status", "").strip()
-                if not st:
-                    raise ValueError("status required")
-                self._vectors[pk] = vec
+                pk = item["vector_pk"]
+                self._vectors[pk] = item["vector"]
                 self._meta[pk] = {k: v for k, v in item.items() if k != "vector"}
                 upserted += 1
             except Exception as exc:
@@ -64,16 +42,12 @@ class MemoryVectorStore:
         return {"upserted": upserted, "errors": errors or None}
 
     def query(self, request: dict) -> list[dict]:
-        qvec = [float(value) for value in request["vector"]]
-        if not qvec or len(qvec) != self._dim:
-            raise ValueError(
-                f"vector dimension mismatch: expected {self._dim}, got {len(qvec)}"
-            )
+        qvec = np.array(request["vector"], dtype=np.float64)
         top_k = request.get("top_k", 10)
         uid_filter = request.get("filter_user_id")
         status_filter = request.get("filter_status", "active")
         kind_filter = request.get("filter_memory_kind")
-        q_norm = math.sqrt(sum(value * value for value in qvec)) + 1e-10
+        q_norm = float(np.linalg.norm(qvec)) + 1e-10
         results = []
         for pk, vec in self._vectors.items():
             meta = self._meta.get(pk)
@@ -85,10 +59,9 @@ class MemoryVectorStore:
                 continue
             if kind_filter and meta.get("memory_kind") != kind_filter:
                 continue
-            vec_values = [float(value) for value in vec]
-            v_norm = math.sqrt(sum(value * value for value in vec_values)) + 1e-10
-            dot_product = sum(left * right for left, right in zip(qvec, vec_values))
-            sim = dot_product / (q_norm * v_norm)
+            vec_arr = np.array(vec, dtype=np.float64)
+            v_norm = float(np.linalg.norm(vec_arr)) + 1e-10
+            sim = float(np.dot(qvec, vec_arr) / (q_norm * v_norm))
             results.append({"vector_pk": pk, "score": sim, "meta": dict(meta)})
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:top_k]

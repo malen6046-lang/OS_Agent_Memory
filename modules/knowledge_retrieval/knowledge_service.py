@@ -1,6 +1,6 @@
 """KnowledgeService — 知识写入、去重、冲突候选检测。"""
 from __future__ import annotations
-import uuid
+import time
 from typing import Any
 
 
@@ -10,38 +10,44 @@ class KnowledgeService:
         self._emb = embedding_provider
         self._vs = vector_store
         self._bm25 = bm25
-        self._meta: dict[str, dict] = metadata_store if metadata_store is not None else {}
+        self._meta: dict[str, dict] = metadata_store or {}
 
     def ingest(self, records: list[dict]) -> dict:
-        all_indexed = []
-        ingest_errors = []
+        ingested = 0
+        skipped_duplicate = 0
+        conflicts: list[str] = []
+        memory_ids: list[str] = []
+        errors: list[dict] = []
         for idx, rec in enumerate(records):
             try:
                 title = rec.get("title", rec.get("content_text", ""))
                 body = rec.get("body", rec.get("content_text", ""))
                 text = (title + " " + body).strip()
                 if not text:
-                    ingest_errors.append({"index": idx, "error": "empty_text"})
+                    errors.append({"index": idx, "error": "empty_text"})
                     continue
                 result = self._ingest_one(rec, text)
-                all_indexed.append({
-                    "status": result["action"],
-                    "memory_id": result["memory_id"],
-                    "indexed": result.get("indexed", {}),
-                    "errors": result.get("errors"),
-                })
+                if result["action"] == "inserted":
+                    ingested += 1
+                    memory_ids.append(result["memory_id"])
+                elif result["action"] == "duplicate":
+                    skipped_duplicate += 1
+                elif result["action"] == "conflict":
+                    ingested += 1
+                    memory_ids.append(result["memory_id"])
+                    conflicts.append(result["memory_id"])
             except Exception as exc:
-                ingest_errors.append({"index": idx, "error": str(exc)})
+                errors.append({"index": idx, "error": str(exc)})
         return {
-            "items": all_indexed,
-            "errors": ingest_errors or None,
+            "ingested": ingested, "skipped_duplicate": skipped_duplicate,
+            "conflicts": conflicts or None, "memory_ids": memory_ids or None,
+            "errors": errors or None,
         }
 
     def _ingest_one(self, rec: dict, text: str) -> dict:
         user_id = rec.get("user_id", "default")
         candidates = self._find_similar(text, user_id)
         threshold = 0.85
-        # Conflict detection
         for cand in candidates:
             cand_text = cand["meta"].get("content_text", "")
             score = cand["score"]
@@ -51,78 +57,11 @@ class KnowledgeService:
                 old_id = cand["meta"].get("memory_id", "")
                 old_version = cand["meta"].get("revision", 1)
                 new_version = old_version + 1
-                memory_id = f"mem_{uuid.uuid4().hex[:16]}"
-                idx_result = self._write_to_stores(memory_id, rec, text, user_id)
+                memory_id = f"mem_{int(time.time()*1000):x}"
                 return {"action": "conflict", "memory_id": memory_id,
-                        "old_memory_id": old_id, "new_version": new_version,
-                        "indexed": idx_result["indexed"], "errors": idx_result["errors"]}
-        memory_id = f"mem_{uuid.uuid4().hex[:16]}"
-        idx_result = self._write_to_stores(memory_id, rec, text, user_id)
-        return {"action": "inserted", "memory_id": memory_id,
-                "indexed": idx_result["indexed"], "errors": idx_result["errors"]}
-
-    def _write_to_stores(self, memory_id: str, rec: dict, text: str, user_id: str) -> dict:
-        """Write to metadata, BM25, and vector store. Returns indexed status per store."""
-        doc = {
-            "doc_id": memory_id,
-            "memory_id": memory_id,
-            "text": text,
-            "content_text": text,
-            "user_id": user_id,
-            "memory_kind": rec.get("memory_kind", "semantic"),
-            "subtype": rec.get("subtype", rec.get("knowledge_type", "fact")),
-            "content": rec,
-            "confidence": rec.get("source_reliability", rec.get("confidence", 0.8)),
-            "importance": rec.get("importance", rec.get("source_reliability", 0.8)),
-            "revision": rec.get("revision", 1),
-            "valid_from": rec.get("effective_at", rec.get("valid_from")),
-            "source_refs": [rec.get("source_event_id", "")],
-            "status": rec.get("status", "active"),
-            "scene": rec.get("scene", "default"),
-        }
-        indexed = {"metadata": False, "bm25": False, "vector": False}
-        errors: list[str] = []
-
-        # Metadata
-        try:
-            self._meta[memory_id] = doc
-            indexed["metadata"] = True
-        except Exception as e:
-            errors.append(f"metadata: {e}")
-
-        # BM25
-        if self._bm25:
-            try:
-                self._bm25.index([doc])
-                indexed["bm25"] = True
-            except Exception as e:
-                errors.append(f"bm25: {e}")
-
-        # Vector store
-        if self._emb:
-            try:
-                batch = self._emb.encode([text])
-                vectors = batch.get("vectors", [])
-                if vectors:
-                    import hashlib
-                    pk = int(hashlib.md5(memory_id.encode()).hexdigest(), 16) & 0x7FFFFFFFFFFFFFFF
-                    result = self._vs.upsert([{
-                        "vector_pk": pk,
-                        "vector": vectors[0],
-                        **{
-                            key: value
-                            for key, value in doc.items()
-                            if key not in {"doc_id", "text"}
-                        },
-                    }])
-                    if result.get("errors"):
-                        errors.append(f"vector: {result['errors']}")
-                    else:
-                        indexed["vector"] = True
-            except Exception as e:
-                errors.append(f"vector: {e}")
-
-        return {"indexed": indexed, "errors": errors or None}
+                        "old_memory_id": old_id, "new_version": new_version}
+        memory_id = f"mem_{int(time.time()*1000):x}"
+        return {"action": "inserted", "memory_id": memory_id}
 
     def _find_similar(self, text: str, user_id: str) -> list[dict]:
         try:

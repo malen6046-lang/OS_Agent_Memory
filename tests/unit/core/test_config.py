@@ -46,7 +46,7 @@ def test_loads_project_default_yaml(monkeypatch):
 @pytest.mark.parametrize(
     ("environment", "embedding_provider", "vector_provider"),
     [
-        ("development", "mock", "memory"),
+        ("development", "sentence_transformer", "faiss"),
         ("kylin", "kylin", "kylin"),
     ],
 )
@@ -64,6 +64,8 @@ def test_loads_environment_yaml(
 
 
 def test_environment_variable_overrides_nested_values(tmp_path, monkeypatch):
+    monkeypatch.delenv("OS_AGENT_ENV", raising=False)
+    monkeypatch.delenv("OS_AGENT_CONFIG_DIR", raising=False)
     write_config(tmp_path, "default.yaml", DEFAULT_YAML)
     monkeypatch.setenv("OS_AGENT_EMBEDDING__PROVIDER", "runtime_provider")
     monkeypatch.setenv("OS_AGENT_RETRIEVAL__TOP_K_DEFAULT", "17")
@@ -75,6 +77,7 @@ def test_environment_variable_overrides_nested_values(tmp_path, monkeypatch):
 
 
 def test_config_directory_can_come_from_environment(tmp_path, monkeypatch):
+    monkeypatch.delenv("OS_AGENT_ENV", raising=False)
     write_config(tmp_path, "default.yaml", DEFAULT_YAML)
     monkeypatch.setenv("OS_AGENT_CONFIG_DIR", str(tmp_path))
 
@@ -84,7 +87,9 @@ def test_config_directory_can_come_from_environment(tmp_path, monkeypatch):
     assert manager.config_dir == tmp_path.resolve()
 
 
-def test_get_returns_full_config_and_dotted_values(tmp_path):
+def test_get_returns_full_config_and_dotted_values(tmp_path, monkeypatch):
+    monkeypatch.delenv("OS_AGENT_ENV", raising=False)
+    monkeypatch.delenv("OS_AGENT_CONFIG_DIR", raising=False)
     write_config(tmp_path, "default.yaml", DEFAULT_YAML)
     manager = ConfigManager(config_dir=tmp_path)
 
@@ -96,6 +101,8 @@ def test_get_returns_full_config_and_dotted_values(tmp_path):
 
 
 def test_reload_rereads_yaml_and_environment(tmp_path, monkeypatch):
+    monkeypatch.delenv("OS_AGENT_ENV", raising=False)
+    monkeypatch.delenv("OS_AGENT_CONFIG_DIR", raising=False)
     write_config(tmp_path, "default.yaml", DEFAULT_YAML)
     manager = ConfigManager(config_dir=tmp_path)
     first = manager.load()
@@ -110,7 +117,9 @@ def test_reload_rereads_yaml_and_environment(tmp_path, monkeypatch):
     assert reloaded.embedding.model_name == "runtime-model"
 
 
-def test_invalid_configuration_is_rejected(tmp_path):
+def test_invalid_configuration_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.delenv("OS_AGENT_ENV", raising=False)
+    monkeypatch.delenv("OS_AGENT_CONFIG_DIR", raising=False)
     invalid_yaml = DEFAULT_YAML.replace("top_k_default: 5", "top_k_default: 0")
     write_config(tmp_path, "default.yaml", invalid_yaml)
 
@@ -118,21 +127,27 @@ def test_invalid_configuration_is_rejected(tmp_path):
         ConfigManager(config_dir=tmp_path).load()
 
 
-def test_non_mapping_yaml_is_rejected(tmp_path):
+def test_non_mapping_yaml_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.delenv("OS_AGENT_ENV", raising=False)
+    monkeypatch.delenv("OS_AGENT_CONFIG_DIR", raising=False)
     write_config(tmp_path, "default.yaml", "- item\n- item\n")
 
     with pytest.raises(ValueError, match="root must be a mapping"):
         ConfigManager(config_dir=tmp_path).load()
 
 
-def test_missing_profile_is_rejected(tmp_path):
+def test_missing_profile_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.delenv("OS_AGENT_ENV", raising=False)
+    monkeypatch.delenv("OS_AGENT_CONFIG_DIR", raising=False)
     write_config(tmp_path, "default.yaml", DEFAULT_YAML)
 
     with pytest.raises(FileNotFoundError):
         ConfigManager(config_dir=tmp_path, environment="missing").load()
 
 
-def test_profile_name_cannot_escape_config_directory(tmp_path):
+def test_profile_name_cannot_escape_config_directory(tmp_path, monkeypatch):
+    monkeypatch.delenv("OS_AGENT_ENV", raising=False)
+    monkeypatch.delenv("OS_AGENT_CONFIG_DIR", raising=False)
     write_config(tmp_path, "default.yaml", DEFAULT_YAML)
 
     with pytest.raises(ValueError, match="invalid configuration environment"):

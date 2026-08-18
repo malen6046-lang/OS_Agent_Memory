@@ -1,12 +1,21 @@
 """Dependency assembly for application services."""
 
-from .errors import ServiceLifecycleError, ServiceStartupError
+from .api_service import OrchestratorApiService
+from .errors import (
+    OrchestratorResponseError,
+    ServiceLifecycleError,
+    ServiceStartupError,
+)
 from .mock_services import (
     FallbackEmbeddingProvider,
     FallbackVectorStoreAdapter,
+    MockAuditRepository,
     MockEmbeddingProvider,
+    MockEvaluationService,
     MockForgetService,
+    MockIdempotencyRepository,
     MockKnowledgeService,
+    MockMemoryRepository,
     MockPreferenceService,
     MockRetriever,
     MockSafetyService,
@@ -22,13 +31,19 @@ from .services import (
 __all__ = [
     "FallbackEmbeddingProvider",
     "FallbackVectorStoreAdapter",
+    "MockAuditRepository",
     "MockEmbeddingProvider",
+    "MockEvaluationService",
     "MockForgetService",
+    "MockIdempotencyRepository",
     "MockKnowledgeService",
+    "MockMemoryRepository",
     "MockPreferenceService",
     "MockRetriever",
     "MockSafetyService",
     "MockVectorStoreAdapter",
+    "OrchestratorApiService",
+    "OrchestratorResponseError",
     "ServiceContainer",
     "ServiceLifecycleError",
     "ServiceStartupError",

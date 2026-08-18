@@ -1,71 +1,75 @@
-"""V1.2.1 unified success and error response builders."""
+"""HTTP helpers backed by the frozen V1.2.2 response contract."""
 
 from __future__ import annotations
 
-from time import perf_counter
-from typing import TypeVar
+from typing import Any, TypeVar
 from uuid import uuid4
 
-from contracts.schemas import (
-    ContractModel,
-    ErrorBody,
-    ErrorCode,
-    ErrorResponse,
-    JsonObject,
-    Provider,
+from pydantic import JsonValue
+
+from contracts.schemas.responses import (
+    ApiResponse,
+    ErrorDetail,
     ResponseMeta,
-    SuccessResponse,
 )
 
-T = TypeVar("T", bound=ContractModel)
+
+ResponseData = TypeVar("ResponseData")
+ApiError = ErrorDetail
 
 
 def new_request_id() -> str:
-    return f"req_{uuid4()}"
+    return f"req_{uuid4().hex}"
 
 
-def success(
-    *,
+def success_response(
     request_id: str,
-    data: T,
-    started_at: float,
-    degraded: bool = False,
-    provider: Provider | None = None,
-) -> SuccessResponse[T]:
-    elapsed_ms = max(0, round((perf_counter() - started_at) * 1000))
-    return SuccessResponse(
+    data: ResponseData,
+    *,
+    meta: ResponseMeta | None = None,
+) -> ApiResponse[ResponseData]:
+    # The orchestrator facade attaches its frozen response metadata through a
+    # private transport key.  Strip that key before validation so it never
+    # becomes part of the public data schema.
+    if isinstance(data, dict):
+        raw_meta = data.pop("__response_meta", None)
+        if isinstance(raw_meta, dict):
+            meta = ResponseMeta.model_validate(raw_meta)
+    return ApiResponse(
+        success=True,
         request_id=request_id,
         data=data,
-        meta=ResponseMeta(
-            elapsed_ms=elapsed_ms,
-            degraded=degraded,
-            provider=provider,
-        ),
+        meta=meta if meta is not None else ResponseMeta(),
     )
 
 
-def error(
-    *,
+def error_response(
     request_id: str,
-    code: ErrorCode,
+    code: str,
     message: str,
+    details: dict[str, JsonValue] | None = None,
+    *,
     retryable: bool = False,
-    details: JsonObject | None = None,
-    degraded: bool = False,
-    provider: Provider | None = None,
-    elapsed_ms: int = 0,
-) -> ErrorResponse:
-    return ErrorResponse(
+    meta: ResponseMeta | None = None,
+) -> ApiResponse[Any]:
+    return ApiResponse(
+        success=False,
         request_id=request_id,
-        error=ErrorBody(
+        error=ErrorDetail(
             code=code,
             message=message,
             retryable=retryable,
             details=details or {},
         ),
-        meta=ResponseMeta(
-            elapsed_ms=max(0, elapsed_ms),
-            degraded=degraded,
-            provider=provider,
-        ),
+        meta=meta or ResponseMeta(),
     )
+
+
+__all__ = [
+    "ApiError",
+    "ApiResponse",
+    "ResponseMeta",
+    "error_response",
+    "new_request_id",
+    "success_response",
+]

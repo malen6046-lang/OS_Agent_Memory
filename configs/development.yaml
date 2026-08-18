@@ -1,8 +1,10 @@
-services:
-  mode: real
-
 embedding:
-  provider: mock
+  provider: sentence_transformer
 
 vector_store:
-  provider: memory
+  provider: faiss
+
+services:
+  memory_repository_implementation: repositories.sqlite:SQLiteMemoryRepository
+  idempotency_repository_implementation: repositories.sqlite:SQLiteIdempotencyRepository
+  audit_repository_implementation: repositories.sqlite:SQLiteAuditRepository

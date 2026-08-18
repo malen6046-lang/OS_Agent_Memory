@@ -5,6 +5,12 @@ from __future__ import annotations
 from uuid import uuid4
 
 from contracts.schemas.envelope import Envelope
+from contracts.schemas.evaluation import EvaluationRunRequest as ContractEvaluationRunRequest
+from contracts.schemas.forget import (
+    ForgetExecuteRequest as ContractForgetExecuteRequest,
+    ForgetPreviewRequest as ContractForgetPreviewRequest,
+)
+from contracts.schemas.retrieval import SearchRequest
 
 from app.api.v1.schemas import (
     EvaluationRunRequest,
@@ -15,6 +21,7 @@ from app.api.v1.schemas import (
 from app.orchestrator import MemoryOrchestrator
 
 from .services import ServiceContainer
+from .errors import OrchestratorResponseError
 
 
 class OrchestratorApiService:
@@ -40,62 +47,128 @@ class OrchestratorApiService:
         }
 
     async def ingest_event(self, envelope: Envelope) -> dict[str, object]:
-        result = await self._orchestrator.ingest_event(envelope)
-        return {
+        result = await self._orchestrator.ingest(envelope)
+        data = _orchestrator_data(result)
+        response = {
             "accepted": True,
             "source_event_id": envelope.source_event_id,
-            "result": result,
+            "result": data,
             "mock": self._container.mode == "mock",
         }
+        _promote_response_meta(data, response)
+        return response
 
     async def search_memory(
-        self, request: MemorySearchRequest
+        self, request: MemorySearchRequest, request_id: str
     ) -> dict[str, object]:
-        result = await self._orchestrator.search_memory(request)
-        items = result.get("items", []) if isinstance(result, dict) else result
-        return {
+        result = await self._orchestrator.search(
+            SearchRequest(
+                request_id=request_id,
+                user_id=request.user_id,
+                query=request.query,
+                top_k=request.top_k,
+                filters=request.filters,
+            )
+        )
+        data = _orchestrator_data(result)
+        response = {
             "user_id": request.user_id,
             "query": request.query,
             "top_k": request.top_k,
-            "items": items,
+            "items": data.get("items", []),
             "mock": self._container.mode == "mock",
         }
+        _promote_response_meta(data, response)
+        return response
 
     async def preview_forget(
-        self, request: ForgetPreviewRequest
+        self, request: ForgetPreviewRequest, request_id: str
     ) -> dict[str, object]:
-        result = await self._orchestrator.preview_forget(request)
-        result = result if isinstance(result, dict) else {}
+        result = await self._orchestrator.preview_forget(
+            ContractForgetPreviewRequest(
+                request_id=request_id,
+                user_id=request.user_id,
+                memory_ids=request.memory_ids,
+                reason=request.reason,
+            )
+        )
+        data = _orchestrator_data(result)
         return {
-            "plan_id": result.get("plan_id", f"forget_{uuid4().hex}"),
+            "plan_id": data.get("plan_id", f"forget_{uuid4().hex}"),
             "user_id": request.user_id,
-            "affected_memory_ids": result.get(
-                "memory_ids", request.memory_ids
-            ),
-            "requires_confirmation": result.get(
+            "affected_memory_ids": [
+                candidate["memory_id"]
+                for candidate in data.get("candidates", [])
+            ],
+            "confirmation_token": data.get("confirmation_token"),
+            "requires_confirmation": data.get(
                 "requires_confirmation", True
             ),
             "mock": self._container.mode == "mock",
         }
 
     async def execute_forget(
-        self, request: ForgetExecuteRequest
+        self, request: ForgetExecuteRequest, request_id: str
     ) -> dict[str, object]:
-        result = await self._orchestrator.execute_forget(request)
-        result = result if isinstance(result, dict) else {}
+        result = await self._orchestrator.execute_forget(
+            ContractForgetExecuteRequest(
+                request_id=request_id,
+                user_id=request.user_id,
+                plan_id=request.plan_id,
+                confirmation_token=request.confirmation_token,
+                selected_ids=request.selected_ids,
+            )
+        )
+        data = _orchestrator_data(result)
+        forget_result = data.get("forget_result", {})
         return {
-            "plan_id": result.get("plan_id", request.plan_id),
+            "plan_id": forget_result.get("plan_id", request.plan_id),
             "user_id": request.user_id,
-            "status": result.get("status", "executed"),
+            "status": "executed",
             "mock": self._container.mode == "mock",
         }
 
     async def run_evaluation(
-        self, request: EvaluationRunRequest
+        self, request: EvaluationRunRequest, request_id: str
     ) -> dict[str, object]:
-        return {
-            "run_id": f"run_{uuid4().hex}",
-            "status": "completed",
-            "metrics": {name: 0.0 for name in request.metric_names},
-            "mock": self._container.mode == "mock",
-        }
+        result = await self._orchestrator.run_evaluation(
+            ContractEvaluationRunRequest(
+                request_id=request_id,
+                metric_names=request.metric_names,
+                dataset=request.dataset,
+            )
+        )
+        data = _orchestrator_data(result)
+        data["mock"] = self._container.mode == "mock"
+        return data
+
+
+def _orchestrator_data(result: dict[str, object]) -> dict[str, object]:
+    if result.get("success") is True:
+        data = result.get("data")
+        payload = data if isinstance(data, dict) else {"result": data}
+        # Preserve the orchestrator's measured elapsed/degraded/provider meta
+        # until the HTTP response helper consumes this private transport key.
+        meta = result.get("meta")
+        if isinstance(meta, dict):
+            payload = dict(payload)
+            payload["__response_meta"] = meta
+        return payload
+
+    error = result.get("error")
+    error = error if isinstance(error, dict) else {}
+    raise OrchestratorResponseError(
+        code=str(error.get("code", "INTERNAL_ERROR")),
+        message=str(error.get("message", "Orchestrator failed")),
+        retryable=bool(error.get("retryable", False)),
+        details=error.get("details") if isinstance(error.get("details"), dict) else {},
+    )
+
+
+def _promote_response_meta(
+    data: dict[str, object], response: dict[str, object]
+) -> None:
+    """Move orchestrator timing metadata to the HTTP envelope boundary."""
+    raw_meta = data.pop("__response_meta", None)
+    if isinstance(raw_meta, dict):
+        response["__response_meta"] = raw_meta

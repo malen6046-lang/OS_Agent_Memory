@@ -2,7 +2,15 @@
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Float, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, utc_now
@@ -25,6 +33,17 @@ class MemoryRecordModel(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, index=True)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    vector_pk: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+    record_json: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
     )

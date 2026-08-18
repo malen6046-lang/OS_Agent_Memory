@@ -1,164 +1,319 @@
-"""ForgetService — 自然语言驱动的精准遗忘。
+"""Two-stage forget planning with no storage or vector side effects."""
 
-Based on C++ OSMemory::forgetByInstruction():
-  - Parse natural language ("忘记关于X的记忆", "删除X相关数据", "忘记全部")
-  - Preview: return candidate memory_ids + risk level + confirmation_token
-  - Execute: confirmation_token → tombstone + vector delete + audit
-"""
 from __future__ import annotations
 
-import uuid
+import hashlib
+import secrets
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from threading import RLock
 from typing import Any
+from uuid import uuid4
+
+from contracts.schemas.forget import (
+    ForgetCandidate,
+    ForgetExecuteRequest,
+    ForgetExecutionPlan,
+    ForgetPlan,
+    ForgetPreviewRequest,
+)
+
+from .errors import (
+    ConfirmationExpiredError,
+    ConfirmationInvalidError,
+    ForgetAuthorizationError,
+    ForgetSelectionError,
+)
+
+
+CandidateResolver = Callable[
+    [str, str],
+    Iterable[ForgetCandidate | Mapping[str, Any] | str],
+]
+
+
+@dataclass
+class _PlanState:
+    plan_id: str
+    user_id: str
+    candidate_ids: tuple[str, ...]
+    expires_at: datetime
+    execution_request_id: str | None = None
+    execution_ids: tuple[str, ...] | None = None
 
 
 class ForgetService:
-    def __init__(self):
-        self._tokens: dict[str, dict] = {}  # token -> {scope, candidates, created_at, expires_at}
+    """Create and validate precise deletion intents.
 
-    def preview(self, instruction: str, retriever: Any = None, user_id: str = "", metadata_store: dict | None = None) -> dict:
-        """Parse instruction and return ForgetPlan with confirmation_token."""
-        import time
+    Explicit ``memory_ids`` work independently.  Natural-language candidate
+    lookup is available only when a synchronous, user-scoped resolver is
+    injected; the service never calls repositories or vector stores itself.
+    """
 
-        kw = self._parse_keyword(instruction)
-        scope = self._parse_scope(instruction, kw)
+    def __init__(
+        self,
+        *,
+        ttl_seconds: int = 300,
+        candidate_resolver: CandidateResolver | None = None,
+        clock: Callable[[], datetime] | None = None,
+        token_factory: Callable[[], str] | None = None,
+        plan_id_factory: Callable[[], str] | None = None,
+    ) -> None:
+        if ttl_seconds <= 0:
+            raise ValueError("ttl_seconds must be positive")
+        self._ttl = timedelta(seconds=ttl_seconds)
+        self._candidate_resolver = candidate_resolver
+        self._clock = clock or _utc_now
+        self._token_factory = token_factory or _new_token
+        self._plan_id_factory = plan_id_factory or _new_plan_id
+        self._plans: dict[bytes, _PlanState] = {}
+        self._lock = RLock()
 
-        candidates: list[dict] = []
-        if retriever and kw:
-            results = retriever.search({"query": kw, "user_id": user_id, "top_k": 20})
-            for item in results.get("items", []):
-                candidates.append({
-                    "memory_id": item["memory_id"],
-                    "content_text": item.get("content_text", "")[:100],
-                    "score": item["score"],
-                })
+    def preview(self, request: ForgetPreviewRequest) -> ForgetPlan:
+        """Return candidates and a user-bound confirmation token."""
+        validated = ForgetPreviewRequest.model_validate(request)
+        now = self._now()
+        candidates = self._resolve_candidates(validated)
+        risk_level = _plan_risk(validated.instruction, len(candidates))
+        candidates = [
+            candidate.model_copy(
+                update={"risk_level": _max_risk(candidate.risk_level, risk_level)}
+            )
+            for candidate in candidates
+        ]
+        plan_id = self._plan_id_factory()
+        token = self._token_factory()
+        if not isinstance(plan_id, str) or not plan_id.strip():
+            raise ValueError("plan_id_factory must return a non-empty string")
+        if not isinstance(token, str) or not token.strip():
+            raise ValueError("token_factory must return a non-empty string")
+        plan_id = plan_id.strip()
+        token = token.strip()
+        expires_at = now + self._ttl
+        state = _PlanState(
+            plan_id=plan_id,
+            user_id=validated.user_id,
+            candidate_ids=tuple(
+                candidate.memory_id for candidate in candidates
+            ),
+            expires_at=expires_at,
+        )
+        plan = ForgetPlan(
+            plan_id=plan_id,
+            user_id=validated.user_id,
+            candidates=candidates,
+            risk_level=risk_level,
+            confirmation_token=token,
+            expires_at=expires_at,
+            requires_confirmation=True,
+        )
 
-        risk = "low"
-        if scope == "all" or len(candidates) > 10:
-            risk = "high"
-        elif len(candidates) > 5:
-            risk = "medium"
+        with self._lock:
+            self._drop_expired(now)
+            token_key = _token_key(token)
+            if token_key in self._plans:
+                raise RuntimeError("token factory produced a duplicate token")
+            self._plans[token_key] = state
 
-        token = f"confirm_{uuid.uuid4().hex[:12]}"
-        now = time.time()
-        candidate_ids = [c["memory_id"] for c in candidates]
-        self._tokens[token] = {
-            "scope": scope,
-            "keyword": kw,
-            "user_id": user_id,
-            "candidates": candidate_ids,
-            "created_at": now,
-            "expires_at": now + 300,
-            "instruction": instruction,
-        }
+        return plan
 
-        return {
-            "instruction": instruction,
-            "scope": scope,
-            "keyword": kw,
-            "candidates": candidates,
-            "risk_level": risk,
-            "confirmation_token": token,
-            "total_candidates": len(candidates),
-        }
+    def execute(self, request: ForgetExecuteRequest) -> ForgetExecutionPlan:
+        """Validate a plan and return deletion intent without deleting data."""
+        validated = ForgetExecuteRequest.model_validate(request)
+        now = self._now()
+        token_key = _token_key(validated.confirmation_token)
+        selected_ids = tuple(dict.fromkeys(validated.selected_ids))
 
-    def execute(self, confirmation_token: str, selected_ids: list[str] | None = None,
-                user_id: str = "", vector_store: Any = None,
-                metadata_store: dict | None = None) -> dict:
-        """Execute forget with confirmation token."""
-        import time
+        with self._lock:
+            state = self._plans.get(token_key)
+            if state is None:
+                raise ConfirmationInvalidError(
+                    "confirmation token is invalid"
+                )
+            if now >= state.expires_at:
+                self._plans.pop(token_key, None)
+                raise ConfirmationExpiredError(
+                    "confirmation token has expired"
+                )
+            if validated.user_id != state.user_id:
+                raise ForgetAuthorizationError(
+                    "forget plan belongs to another user"
+                )
+            if validated.plan_id != state.plan_id:
+                raise ConfirmationInvalidError(
+                    "confirmation token does not match the plan"
+                )
+            if not set(selected_ids).issubset(state.candidate_ids):
+                raise ForgetSelectionError(
+                    "selected_ids must be previewed candidates"
+                )
 
-        token_data = self._tokens.get(confirmation_token)
-        if not token_data:
-            return {"success": False, "error": "token_not_found"}
-        if time.time() > token_data["expires_at"]:
-            del self._tokens[confirmation_token]
-            return {"success": False, "error": "token_expired"}
-        if user_id and token_data.get("user_id") and token_data["user_id"] != user_id:
-            return {"success": False, "error": "unauthorized_user"}
+            if state.execution_request_id is None:
+                state.execution_request_id = validated.request_id
+                state.execution_ids = selected_ids
+            elif (
+                state.execution_request_id != validated.request_id
+                or state.execution_ids != selected_ids
+            ):
+                raise ConfirmationInvalidError(
+                    "confirmation token is already bound to another execution"
+                )
 
-        target_ids = selected_ids or token_data["candidates"]
-        if selected_ids:
-            allowed = set(selected_ids)
-            candidates_set = set(token_data["candidates"])
-            if not allowed.issubset(candidates_set):
-                return {"success": False, "error": "selected_ids not in preview candidates"}
-        tombstoned = 0
-        vectors_deleted = 0
-        errors = []
+            return ForgetExecutionPlan(
+                request_id=validated.request_id,
+                user_id=validated.user_id,
+                plan_id=validated.plan_id,
+                memory_ids=list(selected_ids),
+                expires_at=state.expires_at,
+            )
 
-        for mid in target_ids:
-            # Mark as tombstoned in metadata
-            if metadata_store and mid in metadata_store:
-                metadata_store[mid]["status"] = "tombstoned"
-                tombstoned += 1
+    def _resolve_candidates(
+        self,
+        request: ForgetPreviewRequest,
+    ) -> list[ForgetCandidate]:
+        candidates = [
+            ForgetCandidate(memory_id=memory_id, user_id=request.user_id)
+            for memory_id in request.memory_ids
+        ]
+        keyword = _parse_keyword(request.instruction or "")
+        if keyword and self._candidate_resolver is not None:
+            for item in self._candidate_resolver(request.user_id, keyword):
+                candidate = _candidate(item, request.user_id)
+                if candidate.user_id == request.user_id:
+                    candidates.append(candidate)
 
-        # Delete from vector store
-        if vector_store and target_ids:
-            try:
-                import hashlib
-                pks = [int(hashlib.md5(mid.encode()).hexdigest(), 16) & 0x7FFFFFFFFFFFFFFF
-                       for mid in target_ids]
-                result = vector_store.delete(pks)
-                vectors_deleted = result.get("deleted", 0)
-            except Exception as e:
-                errors.append(f"vector_delete: {e}")
+        unique: dict[str, ForgetCandidate] = {}
+        for candidate in candidates:
+            existing = unique.get(candidate.memory_id)
+            if existing is None:
+                unique[candidate.memory_id] = candidate
+            else:
+                unique[candidate.memory_id] = existing.model_copy(
+                    update={
+                        "risk_level": _max_risk(
+                            existing.risk_level,
+                            candidate.risk_level,
+                        )
+                    }
+                )
+        return list(unique.values())
 
-        del self._tokens[confirmation_token]
-        return {
-            "success": True,
-            "tombstoned": tombstoned,
-            "vectors_deleted": vectors_deleted,
-            "total_deleted": len(target_ids),
-            "errors": errors or None,
-        }
+    def _now(self) -> datetime:
+        now = self._clock()
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("clock must return a timezone-aware datetime")
+        return now.astimezone(timezone.utc)
 
-    SUFFIXES = [
-        "的配置", "的记录", "的设置", "的记忆", "的偏好",
-        "的相关", "相关数据", "相关设置", "的内容", "的资料",
-    ]
+    def _drop_expired(self, now: datetime) -> None:
+        expired = [
+            token_key
+            for token_key, state in self._plans.items()
+            if now >= state.expires_at
+        ]
+        for token_key in expired:
+            self._plans.pop(token_key, None)
 
-    def _parse_keyword(self, instruction: str) -> str:
-        """Extract keyword from natural language forget instruction."""
-        if any(w in instruction for w in ["全部", "所有", "一切"]):
-            return "全部"
-        # "忘记关于X的记忆/偏好" → X
-        p = instruction.find("忘记")
-        if p >= 0:
-            q = instruction.find("关于", p)
-            if q >= 0:
-                return self._strip_suffixes(instruction[q + 2 :].strip())
-        # "删除X相关Y" → X
-        p = instruction.find("删除")
-        if p >= 0:
-            q = instruction.find("相关", p)
-            if q >= 0:
-                return self._strip_suffixes(instruction[p + 2 : q].strip())
-        # 动词定位: 忘记/忘了/不记得/忘掉/删除 后的内容
-        verb_idx, verb_len = -1, 0
-        for v in ["不记得", "忘记", "忘了", "忘掉", "删除"]:
-            idx = instruction.find(v)
-            if idx >= 0 and (verb_idx == -1 or idx < verb_idx):
-                verb_idx, verb_len = idx, len(v)
-        if verb_idx >= 0:
-            after = instruction[verb_idx + verb_len :].strip().lstrip("了").strip()
-            if after.startswith("关于"):
-                after = after[2:].strip()
-            return self._strip_suffixes(after) if after else ""
-        return self._strip_suffixes(instruction.strip())
 
-    def _strip_suffixes(self, kw: str) -> str:
-        """Strip common trailing qualifiers like "的配置"/"的记录"/"相关的"."""
-        # 去掉尾部"相关的/相关"
-        for tail in ["相关", "的", "的记忆", "的偏好", "的设置", "的配置", "的记录"]:
-            if kw.endswith(tail):
-                kw = kw[: -len(tail)].strip()
-                break
-        return kw.strip()
+def _candidate(
+    item: ForgetCandidate | Mapping[str, Any] | str,
+    user_id: str,
+) -> ForgetCandidate:
+    if isinstance(item, str):
+        return ForgetCandidate(memory_id=item, user_id=user_id)
+    if isinstance(item, Mapping):
+        data = dict(item)
+        data.setdefault("user_id", user_id)
+        return ForgetCandidate.model_validate(data)
+    return ForgetCandidate.model_validate(item)
 
-    def _parse_scope(self, instruction: str, keyword: str) -> str:
-        """Determine scope: user, topic, or all."""
-        if any(w in instruction for w in ["全部", "所有", "一切"]):
-            return "all"
-        if keyword and len(keyword) > 10:
-            return "specific"
-        return "topic"
+
+def _plan_risk(
+    instruction: str | None,
+    candidate_count: int,
+) -> str:
+    text = instruction or ""
+    if any(word in text for word in ("全部", "所有", "一切")):
+        return "high"
+    if candidate_count > 10:
+        return "high"
+    if candidate_count > 5:
+        return "medium"
+    return "low"
+
+
+def _max_risk(left: str, right: str) -> str:
+    order = {"low": 0, "medium": 1, "high": 2}
+    return left if order[left] >= order[right] else right
+
+
+def _parse_keyword(instruction: str) -> str:
+    """Preserve the donor's Chinese forget-instruction parsing behavior."""
+    if any(word in instruction for word in ("全部", "所有", "一切")):
+        return "全部"
+
+    forget_position = instruction.find("忘记")
+    if forget_position >= 0:
+        about_position = instruction.find("关于", forget_position)
+        if about_position >= 0:
+            return _strip_suffixes(instruction[about_position + 2 :].strip())
+
+    delete_position = instruction.find("删除")
+    if delete_position >= 0:
+        related_position = instruction.find("相关", delete_position)
+        if related_position >= 0:
+            return _strip_suffixes(
+                instruction[delete_position + 2 : related_position].strip()
+            )
+
+    verb_position = -1
+    verb_length = 0
+    for verb in ("不记得", "忘记", "忘了", "忘掉", "删除"):
+        position = instruction.find(verb)
+        if position >= 0 and (
+            verb_position == -1 or position < verb_position
+        ):
+            verb_position = position
+            verb_length = len(verb)
+    if verb_position >= 0:
+        remainder = instruction[verb_position + verb_length :].strip()
+        remainder = remainder.lstrip("了").strip()
+        if remainder.startswith("关于"):
+            remainder = remainder[2:].strip()
+        return _strip_suffixes(remainder) if remainder else ""
+    return _strip_suffixes(instruction.strip())
+
+
+def _strip_suffixes(keyword: str) -> str:
+    for suffix in (
+        "相关数据",
+        "相关设置",
+        "的配置",
+        "的记录",
+        "的设置",
+        "的记忆",
+        "的偏好",
+        "的内容",
+        "的资料",
+        "相关",
+        "的",
+    ):
+        if keyword.endswith(suffix):
+            return keyword[: -len(suffix)].strip()
+    return keyword.strip()
+
+
+def _token_key(token: str) -> bytes:
+    return hashlib.sha256(token.encode("utf-8")).digest()
+
+
+def _new_token() -> str:
+    return f"confirm_{secrets.token_urlsafe(24)}"
+
+
+def _new_plan_id() -> str:
+    return f"forget_{uuid4().hex}"
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)

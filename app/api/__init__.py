@@ -1,4 +1,4 @@
-"""Versioned HTTP API router exports."""
+"""Versioned API router exports."""
 
 from .v1 import router as api_v1_router
 

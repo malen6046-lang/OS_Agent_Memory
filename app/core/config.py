@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, Mapping
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -47,6 +47,9 @@ class VectorStoreConfig(BaseModel):
 
     provider: NonEmptyString
     implementation: NonEmptyString | None = None
+    collection_name: NonEmptyString = "os_agent_memory"
+    expected_dimension: int = Field(default=768, gt=0)
+    metric: Literal["cosine", "inner_product", "l2"] = "cosine"
 
 
 class ServicesConfig(BaseModel):
@@ -60,6 +63,25 @@ class ServicesConfig(BaseModel):
     forget_implementation: NonEmptyString | None = None
     knowledge_implementation: NonEmptyString | None = None
     retriever_implementation: NonEmptyString | None = None
+    memory_repository_implementation: NonEmptyString | None = None
+    idempotency_repository_implementation: NonEmptyString | None = None
+    audit_repository_implementation: NonEmptyString | None = None
+    evaluation_implementation: NonEmptyString | None = None
+    fallback_retriever_implementation: NonEmptyString | None = None
+    dependency_timeouts: dict[str, float] = Field(
+        default_factory=lambda: {"default": 0.5}
+    )
+
+    @field_validator("dependency_timeouts")
+    @classmethod
+    def _validate_dependency_timeouts(
+        cls, value: dict[str, float]
+    ) -> dict[str, float]:
+        if any(not key.strip() for key in value):
+            raise ValueError("dependency timeout names cannot be empty")
+        if any(timeout <= 0 for timeout in value.values()):
+            raise ValueError("dependency timeouts must be positive")
+        return value
 
 
 class RetrievalConfig(BaseModel):

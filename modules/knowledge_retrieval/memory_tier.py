@@ -41,21 +41,7 @@ class MemoryTierStore:
 
     def put(self, memory_id: str, value: str, tier: MemoryTier = MemoryTier.WORKING,
             importance: float = 0.3) -> str:
-        existing = self._entries.get(memory_id)
-        if existing:
-            was_inactive = not existing.active
-            existing.value = value
-            existing.importance = importance
-            existing.last_accessed = time.time()
-            existing.access_count += 1
-            if was_inactive:
-                existing.active = True
-                existing.tier = tier
-                existing.strength = 1.0
-                self._tier_counts[tier] += 1
-            return memory_id
-        active = self.active_count()
-        if active >= self.MAX_ENTRIES:
+        if len(self._entries) >= self.MAX_ENTRIES:
             self._evict_lowest()
         entry = MemoryEntry(memory_id=memory_id, tier=tier, value=value, importance=importance)
         self._entries[memory_id] = entry

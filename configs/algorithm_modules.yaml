@@ -1,0 +1,6 @@
+services:
+  preference_implementation: adapters.preference_safety.preference:build_preference_service
+  safety_implementation: adapters.preference_safety.safety:build_safety_service
+  forget_implementation: adapters.preference_safety.forget:build_forget_service
+  knowledge_implementation: adapters.knowledge_retrieval.knowledge:build_knowledge_service
+  retriever_implementation: adapters.knowledge_retrieval.retrieval:build_hybrid_retriever

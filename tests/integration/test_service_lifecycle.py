@@ -1,5 +1,5 @@
 import pytest
-from tests.asgi_client import ASGITestClient
+from fastapi.testclient import TestClient
 
 from app.dependencies import (
     FallbackEmbeddingProvider,
@@ -10,7 +10,7 @@ from app.main import app
 
 
 def test_lifespan_starts_reuses_and_closes_application_services():
-    with ASGITestClient(app) as client:
+    with TestClient(app) as client:
         container = app.state.service_container
         service = app.state.api_service
 
@@ -37,7 +37,7 @@ def test_lifespan_uses_fallback_providers_from_environment(monkeypatch):
     monkeypatch.setenv("OS_AGENT_EMBEDDING__PROVIDER", "fallback")
     monkeypatch.setenv("OS_AGENT_VECTOR_STORE__PROVIDER", "fallback")
 
-    with ASGITestClient(app):
+    with TestClient(app):
         container = app.state.service_container
         assert isinstance(
             container.embedding_provider, FallbackEmbeddingProvider
@@ -47,14 +47,15 @@ def test_lifespan_uses_fallback_providers_from_environment(monkeypatch):
         )
 
 
-def test_lifespan_real_mode_uses_built_in_algorithms(monkeypatch):
+def test_lifespan_fails_when_real_service_is_missing(monkeypatch):
     monkeypatch.setenv("OS_AGENT_SERVICES__MODE", "real")
 
-    with ASGITestClient(app):
-        container = app.state.service_container
-        assert container.mode == "real"
-        assert type(container.knowledge_service).__name__ == "AsyncKnowledgeServiceAdapter"
-        assert type(container.retriever).__name__ == "AsyncHybridRetrieverAdapter"
+    with pytest.raises(
+        ServiceStartupError,
+        match="MemoryRepository real implementation is not configured",
+    ):
+        with TestClient(app):
+            pass
 
 
 def test_lifespan_fails_when_kylin_provider_is_missing(monkeypatch):
@@ -64,5 +65,5 @@ def test_lifespan_fails_when_kylin_provider_is_missing(monkeypatch):
         ServiceStartupError,
         match="Kylin EmbeddingProvider real implementation is not configured",
     ):
-        with ASGITestClient(app):
+        with TestClient(app):
             pass

@@ -1,92 +1,272 @@
-"""ForgetService tests — natural language forget."""
-from modules.preference_safety.forget_service import ForgetService
+"""Acceptance tests for two-stage forget planning and validation."""
+
+from __future__ import annotations
+
+import inspect
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from contracts.schemas.forget import (
+    ForgetCandidate,
+    ForgetExecuteRequest,
+    ForgetExecutionPlan,
+    ForgetPlan,
+    ForgetPreviewRequest,
+)
+from modules.preference_safety import ForgetService
+from modules.preference_safety.errors import (
+    ConfirmationExpiredError,
+    ConfirmationInvalidError,
+    ForgetAuthorizationError,
+    ForgetSelectionError,
+)
 
 
-class TestPreview:
-    def test_preview_keyword_extraction(self):
-        fs = ForgetService()
-        plan = fs.preview("\u5fd8\u8bb0\u5173\u4e8e\u7ec8\u7aef\u5feb\u6377\u952e\u7684\u8bb0\u5fc6")
-        assert plan["keyword"] == "\u7ec8\u7aef\u5feb\u6377\u952e"
-        assert "confirmation_token" in plan
-        assert plan["scope"] in ("topic", "specific")
-
-    def test_preview_delete_related(self):
-        fs = ForgetService()
-        plan = fs.preview("\u5220\u9664\u7ec8\u7aef\u76f8\u5173\u6570\u636e")
-        assert plan["keyword"] == "\u7ec8\u7aef"
-        assert "confirmation_token" in plan
-
-    def test_preview_all(self):
-        fs = ForgetService()
-        plan = fs.preview("\u5fd8\u8bb0\u5168\u90e8\u8bb0\u5fc6")
-        assert plan["scope"] == "all"
-        assert plan["risk_level"] == "high"
-
-    def test_preview_empty_instruction(self):
-        fs = ForgetService()
-        plan = fs.preview("")
-        assert plan["keyword"] == ""
-        assert plan["total_candidates"] == 0
-
-    def test_preview_with_retriever(self):
-        class FakeRetriever:
-            def search(self, request):
-                return {"items": [
-                    {"memory_id": "m1", "content_text": "\u7ec8\u7aef\u5feb\u6377\u952e\u8bf4\u660e", "score": 0.9},
-                    {"memory_id": "m2", "content_text": "\u6570\u636e\u5e93\u5907\u4efd\u65b9\u6cd5", "score": 0.3},
-                ]}
-
-        fs = ForgetService()
-        plan = fs.preview("\u5fd8\u8bb0\u5173\u4e8e\u7ec8\u7aef\u7684\u8bb0\u5fc6",
-                          retriever=FakeRetriever(), user_id="u1")
-        assert plan["total_candidates"] == 2
-        assert plan["risk_level"] in ("low", "medium")
+NOW = datetime(2099, 8, 5, 12, 0, tzinfo=timezone.utc)
 
 
-class TestExecute:
-    def test_execute_success(self):
-        fs = ForgetService()
-        plan = fs.preview("\u5fd8\u8bb0\u5173\u4e8e\u4e3b\u9898\u7684\u504f\u597d")
-        token = plan["confirmation_token"]
-        # Without selected_ids, uses preview candidates (which are empty with no retriever)
-        result = fs.execute(token, selected_ids=None)
-        assert result["success"] is True
+class MutableClock:
+    def __init__(self, now: datetime = NOW) -> None:
+        self.now = now
 
-    def test_execute_expired_token(self):
-        fs = ForgetService()
-        plan = fs.preview("\u5fd8\u8bb0\u4e3b\u9898")
-        token = plan["confirmation_token"]
-        fs._tokens[token]["expires_at"] = 0
-        result = fs.execute(token)
-        assert result["success"] is False
-        assert result["error"] == "token_expired"
+    def __call__(self) -> datetime:
+        return self.now
 
-    def test_execute_invalid_token(self):
-        fs = ForgetService()
-        result = fs.execute("bad_token")
-        assert result["success"] is False
-        assert result["error"] == "token_not_found"
+    def advance(self, seconds: int) -> None:
+        self.now += timedelta(seconds=seconds)
 
-    def test_execute_unauthorized_user(self):
-        fs = ForgetService()
-        plan = fs.preview("\u5fd8\u8bb0\u4e3b\u9898", user_id="usr_A")
-        result = fs.execute(plan["confirmation_token"], user_id="usr_B")
-        assert result["success"] is False
-        assert result["error"] == "unauthorized_user"
 
-    def test_selected_ids_must_be_in_candidates(self):
-        fs = ForgetService()
-        plan = fs.preview("\u5fd8\u8bb0\u4e3b\u9898")
-        result = fs.execute(plan["confirmation_token"], selected_ids=["not_in_preview"])
-        assert result["success"] is False
+def _service(
+    *,
+    clock: MutableClock | None = None,
+    resolver=None,
+) -> ForgetService:
+    return ForgetService(
+        ttl_seconds=300,
+        candidate_resolver=resolver,
+        clock=clock or MutableClock(),
+        token_factory=lambda: "confirm_contract_token",
+        plan_id_factory=lambda: "plan_contract_1",
+    )
 
-    def test_execute_with_vector_store(self):
-        class FakeVS:
-            def delete(self, pks):
-                return {"deleted": 2, "errors": None}
 
-        fs = ForgetService()
-        plan = fs.preview("\u5fd8\u8bb0\u4e3b\u9898")
-        result = fs.execute(plan["confirmation_token"],
-                            selected_ids=None, vector_store=FakeVS())
-        assert result["success"] is True
+def _preview(
+    service: ForgetService,
+    *,
+    user_id: str = "usr_1",
+    memory_ids: list[str] | None = None,
+    instruction: str | None = None,
+) -> ForgetPlan:
+    return service.preview(
+        ForgetPreviewRequest(
+            request_id="req_preview",
+            user_id=user_id,
+            memory_ids=memory_ids or [],
+            instruction=instruction,
+        )
+    )
+
+
+def _execute_request(
+    plan: ForgetPlan,
+    *,
+    request_id: str = "req_execute",
+    user_id: str | None = None,
+    plan_id: str | None = None,
+    token: str | None = None,
+    selected_ids: list[str] | None = None,
+) -> ForgetExecuteRequest:
+    return ForgetExecuteRequest(
+        request_id=request_id,
+        user_id=user_id or plan.user_id,
+        plan_id=plan_id or plan.plan_id,
+        confirmation_token=token or plan.confirmation_token,
+        selected_ids=selected_ids or [
+            candidate.memory_id for candidate in plan.candidates
+        ],
+    )
+
+
+def test_public_methods_keep_frozen_synchronous_request_only_signatures():
+    for method_name in ("preview", "execute"):
+        method = getattr(ForgetService, method_name)
+        assert not inspect.iscoroutinefunction(method)
+        assert list(inspect.signature(method).parameters) == [
+            "self",
+            "request",
+        ]
+
+
+def test_preview_and_execute_return_frozen_contract_models():
+    clock = MutableClock()
+    service = _service(clock=clock)
+    plan = _preview(service, memory_ids=["mem_1", "mem_1", "mem_2"])
+
+    assert isinstance(plan, ForgetPlan)
+    assert all(isinstance(item, ForgetCandidate) for item in plan.candidates)
+    assert [item.memory_id for item in plan.candidates] == ["mem_1", "mem_2"]
+    assert all(item.user_id == "usr_1" for item in plan.candidates)
+    assert plan.requires_confirmation is True
+    assert plan.expires_at == NOW + timedelta(seconds=300)
+    assert plan.expires_at.tzinfo is not None
+
+    execution = service.execute(
+        _execute_request(plan, selected_ids=["mem_2", "mem_1", "mem_2"])
+    )
+    assert isinstance(execution, ForgetExecutionPlan)
+    assert execution.request_id == "req_execute"
+    assert execution.user_id == "usr_1"
+    assert execution.plan_id == plan.plan_id
+    assert execution.memory_ids == ["mem_2", "mem_1"]
+    assert execution.expires_at == plan.expires_at
+
+
+def test_instruction_parser_resolver_is_user_scoped_and_does_not_mutate_input():
+    calls = []
+    local = {"memory_id": "mem_local", "user_id": "usr_1"}
+    foreign = {"memory_id": "mem_foreign", "user_id": "usr_2"}
+    source = [local, "mem_local", foreign]
+    before = deepcopy(source)
+
+    def resolver(user_id, keyword):
+        calls.append((user_id, keyword))
+        return source
+
+    plan = _preview(
+        _service(resolver=resolver),
+        instruction="忘记关于终端快捷键的记忆",
+    )
+
+    assert calls == [("usr_1", "终端快捷键")]
+    assert [item.memory_id for item in plan.candidates] == ["mem_local"]
+    assert source == before
+
+
+def test_duplicate_candidates_preserve_the_highest_risk():
+    def resolver(_user_id, _keyword):
+        return [
+            {
+                "memory_id": "mem_1",
+                "user_id": "usr_1",
+                "risk_level": "high",
+            }
+        ]
+
+    plan = _preview(
+        _service(resolver=resolver),
+        memory_ids=["mem_1"],
+        instruction="忘记终端",
+    )
+
+    assert len(plan.candidates) == 1
+    assert plan.candidates[0].risk_level == "high"
+
+
+@pytest.mark.parametrize(
+    ("memory_count", "instruction", "expected"),
+    [
+        (1, None, "low"),
+        (6, None, "medium"),
+        (11, None, "high"),
+        (0, "忘记全部记忆", "high"),
+    ],
+)
+def test_preview_risk_rules(memory_count, instruction, expected):
+    memory_ids = [f"mem_{index}" for index in range(memory_count)]
+    plan = _preview(
+        _service(),
+        memory_ids=memory_ids,
+        instruction=instruction,
+    )
+
+    assert plan.risk_level == expected
+    assert all(item.risk_level == expected for item in plan.candidates)
+
+
+def test_token_is_bound_to_user_plan_and_previewed_selection():
+    service = _service()
+    plan = _preview(service, memory_ids=["mem_1", "mem_2"])
+
+    with pytest.raises(ConfirmationInvalidError):
+        service.execute(_execute_request(plan, token="confirm_wrong"))
+    with pytest.raises(ForgetAuthorizationError):
+        service.execute(_execute_request(plan, user_id="usr_other"))
+    with pytest.raises(ConfirmationInvalidError):
+        service.execute(_execute_request(plan, plan_id="plan_other"))
+    with pytest.raises(ForgetSelectionError):
+        service.execute(
+            _execute_request(plan, selected_ids=["mem_1", "mem_not_previewed"])
+        )
+
+
+def test_expired_token_is_rejected_at_the_exact_ttl_boundary():
+    clock = MutableClock()
+    service = _service(clock=clock)
+    plan = _preview(service, memory_ids=["mem_1"])
+    clock.advance(300)
+
+    with pytest.raises(ConfirmationExpiredError):
+        service.execute(_execute_request(plan))
+
+
+def test_same_execution_request_is_idempotently_retried():
+    service = _service()
+    plan = _preview(service, memory_ids=["mem_1", "mem_2"])
+    request = _execute_request(
+        plan,
+        request_id="req_stable",
+        selected_ids=["mem_2", "mem_1"],
+    )
+
+    first = service.execute(request)
+    replay = service.execute(request)
+
+    assert replay == first
+    with pytest.raises(ConfirmationInvalidError):
+        service.execute(
+            _execute_request(
+                plan,
+                request_id="req_different",
+                selected_ids=["mem_2", "mem_1"],
+            )
+        )
+    with pytest.raises(ConfirmationInvalidError):
+        service.execute(
+            _execute_request(
+                plan,
+                request_id="req_stable",
+                selected_ids=["mem_1"],
+            )
+        )
+
+
+def test_preview_and_execute_do_not_mutate_database_vector_or_audit(
+    monkeypatch,
+):
+    from app.dependencies.mock_services import (
+        MockAuditRepository,
+        MockMemoryRepository,
+        MockVectorStoreAdapter,
+    )
+    from repositories.sqlite import SQLiteAuditRepository, SQLiteMemoryRepository
+
+    side_effects = []
+
+    def forbidden(*_args, **_kwargs):
+        side_effects.append("mutation")
+        raise AssertionError("ForgetService must only return a deletion plan")
+
+    monkeypatch.setattr(MockMemoryRepository, "logical_delete", forbidden)
+    monkeypatch.setattr(MockVectorStoreAdapter, "delete", forbidden)
+    monkeypatch.setattr(MockAuditRepository, "record", forbidden)
+    monkeypatch.setattr(SQLiteMemoryRepository, "logical_delete", forbidden)
+    monkeypatch.setattr(SQLiteAuditRepository, "record", forbidden)
+
+    service = _service()
+    plan = _preview(service, memory_ids=["mem_1"])
+    execution = service.execute(_execute_request(plan))
+
+    assert isinstance(execution, ForgetExecutionPlan)
+    assert side_effects == []

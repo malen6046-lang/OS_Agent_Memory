@@ -1,21 +1,21 @@
-"""SQLAlchemy ORM exports, separate from Pydantic contracts."""
+"""SQLAlchemy ORM models, kept separate from Pydantic contract schemas."""
 
-from app.models.base import Base, TimestampMixin, UTCDateTime, utc_now
-from app.models.entities import (
-    AuditLogModel,
+from .audit import AuditLogModel
+from .base import Base, TimestampMixin, UTCDateTime, utc_now
+from .domain import (
     ConflictModel,
-    EvaluationRunModel,
     ForgetAuditModel,
-    IdempotencyRecordModel,
     KnowledgeModel,
     KnowledgeRelationModel,
     KnowledgeVersionModel,
-    MemoryModel,
     MemoryTransitionModel,
     PreferenceModel,
     PreferenceVersionModel,
     VectorMappingModel,
 )
+from .evaluation import EvaluationRunModel
+from .idempotency import IdempotencyRecordModel
+from .memory import MemoryRecordModel
 
 __all__ = [
     "AuditLogModel",
@@ -27,7 +27,7 @@ __all__ = [
     "KnowledgeModel",
     "KnowledgeRelationModel",
     "KnowledgeVersionModel",
-    "MemoryModel",
+    "MemoryRecordModel",
     "MemoryTransitionModel",
     "PreferenceModel",
     "PreferenceVersionModel",

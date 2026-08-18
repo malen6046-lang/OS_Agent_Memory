@@ -23,7 +23,6 @@ class FaissVectorStore:
         self._pk_to_idx: dict[int, int] = {}
         self._idx_to_pk: list[int] = []
         self._meta: dict[int, dict] = {}
-        self._deleted: set[int] = set()
 
     def start(self, config: dict | None = None) -> dict:
         if config:
@@ -42,7 +41,6 @@ class FaissVectorStore:
         self._pk_to_idx.clear()
         self._idx_to_pk.clear()
         self._meta.clear()
-        self._deleted.clear()
 
     def ensure_collection(self, spec: dict) -> None:
         dim = spec.get("dim", spec.get("dimension", 0))
@@ -60,7 +58,6 @@ class FaissVectorStore:
                 pk = item["vector_pk"]
                 vec = np.array(item["vector"], dtype=np.float32).reshape(1, -1)
                 if self._index is not None:
-                    import faiss
                     faiss.normalize_L2(vec)
                     i = self._index.ntotal
                     self._index.add(vec)
@@ -111,14 +108,9 @@ class FaissVectorStore:
             meta = self._meta.get(pk)
             if not meta:
                 continue
-            if pk in self._deleted:
-                continue
             if uid_filter and meta.get("user_id") != uid_filter:
                 continue
             if status_filter and meta.get("status") != status_filter:
-                continue
-            kind_filter = request.get("filter_memory_kind")
-            if kind_filter and meta.get("memory_kind") != kind_filter:
                 continue
             results.append({"vector_pk": pk, "score": float(scores[0][i]), "meta": dict(meta)})
         return sorted(results, key=lambda x: x["score"], reverse=True)[:top_k]
@@ -137,8 +129,8 @@ class FaissVectorStore:
         deleted = 0
         errors = []
         for pk in vector_pks:
-            if pk in self._meta and pk not in self._deleted:
-                self._deleted.add(pk)
+            if pk in self._meta:
+                del self._meta[pk]
                 deleted += 1
             else:
                 errors.append({"vector_pk": pk, "error": "not_found"})

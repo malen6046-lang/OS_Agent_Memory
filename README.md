@@ -45,3 +45,7 @@ python -m venv .venv
 - `adapters/`：Embedding 与向量存储适配器
 - `tests/`：合同、单元、持久化和 API 集成测试
 - `configs/`：运行环境配置
+
+## 项目文档
+
+- [后端代码总览](docs/后端代码总览.md)：代码分层、接口、算法、持久化、配置和测试说明

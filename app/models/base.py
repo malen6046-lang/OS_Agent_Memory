@@ -1,3 +1,5 @@
+"""Shared SQLAlchemy declarative base and timestamp helpers."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -7,10 +9,11 @@ from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
 
+
 NAMING_CONVENTION = {
     "ix": "ix_%(table_name)s_%(column_0_name)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "ck": "ck_%(table_name)s_%(column_0_name)s",
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "pk": "pk_%(table_name)s",
 }
@@ -21,13 +24,15 @@ def utc_now() -> datetime:
 
 
 class UTCDateTime(TypeDecorator[datetime]):
-    """Store timezone-aware datetimes as UTC ISO 8601 text in SQLite."""
+    """Persist aware datetimes as normalized UTC ISO-8601 text in SQLite."""
 
     impl = String(35)
     cache_ok = True
 
     def process_bind_param(
-        self, value: datetime | None, dialect: Dialect
+        self,
+        value: datetime | None,
+        _dialect: Dialect,
     ) -> str | None:
         if value is None:
             return None
@@ -36,20 +41,35 @@ class UTCDateTime(TypeDecorator[datetime]):
         return value.astimezone(timezone.utc).isoformat()
 
     def process_result_value(
-        self, value: str | None, dialect: Dialect
+        self,
+        value: str | datetime | None,
+        _dialect: Dialect,
     ) -> datetime | None:
         if value is None:
             return None
-        parsed = datetime.fromisoformat(value)
-        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+        parsed = value if isinstance(value, datetime) else datetime.fromisoformat(value)
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
 
 
 class Base(DeclarativeBase):
+    """Base class for database models only."""
+
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    """UTC creation and update timestamps for domain persistence models."""
+
+    created_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(),
+        nullable=False,
+        default=utc_now,
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), default=utc_now, onupdate=utc_now
+        UTCDateTime(),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
     )
