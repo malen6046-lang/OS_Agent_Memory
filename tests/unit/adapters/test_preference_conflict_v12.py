@@ -149,6 +149,82 @@ def test_preference_extraction_preserves_scene_scope() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    (
+        (
+            "审查反馈默认以中文分点呈现",
+            {("output.language", "zh_bullet", "output_style")},
+        ),
+        (
+            "答复保持精炼，直接给结果",
+            {("output.verbosity", "concise", "output_style")},
+        ),
+        (
+            "复杂操作请一步一步讲解过程",
+            {("output.verbosity", "step_by_step", "output_style")},
+        ),
+        (
+            "日常默认使用搜狗输入法",
+            {("tool.ime", "sogou", "tool_choice")},
+        ),
+        (
+            "习惯开启多个工作区桌面",
+            {("ui.multi_desktop", "enabled", "operation_habit")},
+        ),
+        (
+            "每个工作日晚上十点自动关机",
+            {("workflow.shutdown", "weekday_22", "operation_habit")},
+        ),
+        (
+            "系统日志级别固定为 INFO",
+            {("workflow.log_level", "info", "operation_habit")},
+        ),
+        (
+            "启用快捷键方案 A 作为默认配置",
+            {("ui.shortcuts", "custom_set_a", "operation_habit")},
+        ),
+        (
+            "默认打开安全审计日志",
+            {("security.audit_log", "enabled", "safety_policy")},
+        ),
+        (
+            "系统盘必须启用全盘加密",
+            {
+                (
+                    "security.full_disk_encryption",
+                    "enabled",
+                    "safety_policy",
+                )
+            },
+        ),
+        (
+            "依赖安装优先选 apt",
+            {("tool.package_manager", "apt", "tool_choice")},
+        ),
+    ),
+)
+def test_preference_extraction_generalizes_semantic_signals(
+    text: str,
+    expected: set[tuple[str, str, str]],
+) -> None:
+    signatures = _preference_signatures(text)
+    assert {(key, value, category) for key, value, category, *_ in signatures} == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "仅本轮按步骤详细讲解",
+        "不要使用深色主题",
+    ),
+)
+def test_preference_extraction_rejects_temporary_or_negated_signals(
+    text: str,
+) -> None:
+    assert _preference_signatures(text) == set()
+
+
 @pytest.fixture
 def conflict_service() -> KnowledgeServiceAdapter:
     return KnowledgeServiceAdapter(_Embedding(), _VectorStore())
@@ -245,7 +321,7 @@ def test_security_conflict_uses_manual_review_for_scene_exception(
     )
 
 
-def test_value_outside_known_slot_domain_is_unrelated(
+def test_value_known_to_belong_to_another_slot_is_unrelated(
     conflict_service: KnowledgeServiceAdapter,
 ) -> None:
     old = _record("mem_old", "tool.browser", "firefox", "默认 Firefox")
@@ -262,6 +338,61 @@ def test_value_outside_known_slot_domain_is_unrelated(
     assert (decision.relation, decision.strategy) == (
         "unrelated",
         "keep_old",
+    )
+
+
+@pytest.mark.parametrize(
+    ("key", "old_value", "new_value"),
+    (
+        ("output.format", "table", "bullets"),
+        ("tool.browser", "firefox", "brave"),
+    ),
+)
+def test_unseen_values_in_the_same_slot_replace_when_newer(
+    conflict_service: KnowledgeServiceAdapter,
+    key: str,
+    old_value: str,
+    new_value: str,
+) -> None:
+    old = _record("mem_old", key, old_value, f"原偏好为 {old_value}")
+    new = _record(
+        "mem_new",
+        key,
+        new_value,
+        f"现偏好为 {new_value}",
+        valid_from=NOW + timedelta(days=1),
+    )
+
+    decision = conflict_service.classify_conflict(old, new)
+
+    assert (decision.relation, decision.strategy) == (
+        "replace",
+        "keep_new",
+    )
+
+
+def test_mutually_exclusive_verbosity_preferences_require_review(
+    conflict_service: KnowledgeServiceAdapter,
+) -> None:
+    old = _record(
+        "mem_old",
+        "output.verbosity",
+        "concise",
+        "回答保持简洁",
+    )
+    new = _record(
+        "mem_new",
+        "output.verbosity",
+        "step_by_step",
+        "回答需要逐步详细说明",
+        valid_from=NOW + timedelta(days=1),
+    )
+
+    decision = conflict_service.classify_conflict(old, new)
+
+    assert (decision.relation, decision.strategy) == (
+        "contradict",
+        "manual_review",
     )
 
 

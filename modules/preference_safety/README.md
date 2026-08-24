@@ -5,11 +5,10 @@
 `algorithm_modules` profiles call that snapshot only through
 `adapters/preference_safety/`.
 
-The contract-native service files at this directory root were produced by
-the earlier `d3fe10e` integration and include additional policies such as
-last-mentioned preference resolution, negation polarity, stricter safety
-rules, and hardened forget-plan handling. They are retained as a vNext
-implementation for review, but neither adapter profile selects them.
+V1.2 modules outside the donor provide canonical preference keys, semantic
+signal extraction, separator-resistant safety detection, and conservative
+forget intent parsing. The staged adapters select these V1.2 enhancements
+while retaining explicit legacy-injection paths for compatibility tests.
 
 Preference state and forget confirmation plans remain process-local. Run
 the staged profiles with one application worker until durable state is

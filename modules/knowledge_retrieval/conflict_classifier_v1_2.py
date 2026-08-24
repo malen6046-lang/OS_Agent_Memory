@@ -52,6 +52,16 @@ _KNOWN_VALUE_DOMAINS = {
         "json",
         "docx",
     },
+    "output.verbosity": {
+        "concise",
+        "detailed",
+        "step_by_step",
+    },
+    "security.ssh_auth": {
+        "password",
+        "password_or_key",
+        "pubkey_only",
+    },
     "workflow.backup": {
         "incremental_local",
         "incremental_cloud",
@@ -127,12 +137,12 @@ class StructuredConflictClassifier:
                 ["same_attribute", "same_value"],
             )
 
-        if not _values_belong_to_key(old_key, old_value, new_value):
+        if _value_is_clearly_foreign(old_key, new_value):
             return self._result(
                 "unrelated",
                 "keep_old",
                 0.92,
-                ["attribute_value_domain_mismatch"],
+                ["value_belongs_to_different_attribute"],
             )
 
         if _is_extension(old_value, new_value):
@@ -145,7 +155,7 @@ class StructuredConflictClassifier:
             )
 
         if _is_contradictory_slot(old_key):
-            strategy = _contradiction_strategy(old, new)
+            strategy = _contradiction_strategy(old_key, old, new)
             return self._result(
                 "contradict",
                 strategy,
@@ -248,10 +258,18 @@ def _is_extension(old_value: Any, new_value: Any) -> bool:
 
 
 def _is_contradictory_slot(key: str) -> bool:
-    return key.startswith(("security.", "fix.", "policy."))
+    return key == "output.verbosity" or key.startswith(
+        ("security.", "fix.", "policy.")
+    )
 
 
-def _contradiction_strategy(old: MemoryRecord, new: MemoryRecord) -> str:
+def _contradiction_strategy(
+    key: str,
+    old: MemoryRecord,
+    new: MemoryRecord,
+) -> str:
+    if key == "output.verbosity":
+        return "manual_review"
     if any(cue in new.content_text for cue in _MANUAL_REVIEW_CUES):
         return "manual_review"
     return "keep_new" if _is_newer_or_stronger(old, new) else "manual_review"
@@ -263,13 +281,25 @@ def _is_newer_or_stronger(old: MemoryRecord, new: MemoryRecord) -> bool:
     return new.confidence > old.confidence
 
 
-def _values_belong_to_key(key: str, old_value: Any, new_value: Any) -> bool:
-    domain = _KNOWN_VALUE_DOMAINS.get(key)
-    if domain is None:
-        return True
-    old_normalized = str(old_value).strip().casefold()
-    new_normalized = str(new_value).strip().casefold()
-    return old_normalized in domain and new_normalized in domain
+def _value_is_clearly_foreign(key: str, value: Any) -> bool:
+    """Reject only values known to belong to another attribute.
+
+    Value domains are supporting evidence, not closed-world allowlists.  An
+    unseen browser or output format is therefore still a valid value for its
+    slot, while a known SSH authentication value stored under ``tool.browser``
+    is treated as structurally mis-keyed.
+    """
+    normalized = str(value).strip().casefold()
+    if not normalized:
+        return False
+    own_domain = _KNOWN_VALUE_DOMAINS.get(key, set())
+    if normalized in own_domain:
+        return False
+    return any(
+        normalized in domain
+        for other_key, domain in _KNOWN_VALUE_DOMAINS.items()
+        if other_key != key
+    )
 
 
 def _text_similarity(old_text: str, new_text: str) -> float:

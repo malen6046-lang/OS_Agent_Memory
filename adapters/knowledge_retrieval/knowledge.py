@@ -80,6 +80,22 @@ class KnowledgeServiceAdapter:
                     validated_preferences,
                     index,
                 )
+                flow_state = self.runtime.memory_flow.register(
+                    record.memory_id,
+                    record.user_id,
+                    importance=record.importance,
+                    evidence_count=max(1, len(record.source_refs)),
+                    pinned=event.source == "manual_config",
+                    now=event.occurred_at,
+                )
+                record = record.model_copy(
+                    update={
+                        "attributes": {
+                            **record.attributes,
+                            "memory_tier": flow_state.tier.value,
+                        }
+                    }
+                )
                 self.runtime.index_bm25([_bm25_document(record)])
                 self._records[record.memory_id] = record
                 records.append(record)

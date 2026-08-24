@@ -14,7 +14,7 @@ _DETECTORS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     (
         "phone",
         "sensitive.phone",
-        re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)"),
+        re.compile(r"(?<!\d)1[3-9](?:[\s-]?\d){9}(?!\d)"),
     ),
     (
         "id_card",
@@ -28,7 +28,7 @@ _DETECTORS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     (
         "bank_card",
         "sensitive.bank_card",
-        re.compile(r"(?<!\d)\d{16,19}(?!\d)"),
+        re.compile(r"(?<!\d)(?:\d[\s-]?){15,18}\d(?!\d)"),
     ),
     (
         "email",
@@ -42,9 +42,20 @@ _DETECTORS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         "api_key",
         "sensitive.api_key",
         re.compile(
-            r"(?:\bsk-[A-Za-z0-9_-]{16,}\b|"
-            r"\b(?:sk|api[_-]?key|token|secret)\s*[:=]\s*"
-            r"[A-Za-z0-9_.-]{16,})",
+            r"\bapi[\s_-]*key\b\s*(?:[:=：]|is|是)?\s*"
+            r"[A-Za-z0-9_.@#-]{6,}",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "token",
+        "sensitive.token",
+        re.compile(
+            r"(?:\b(?:access[\s_-]*token|refresh[\s_-]*token|"
+            r"api\s+token|token)\b|令\s*牌)"
+            r"\s*(?:[:=：]|is|是)?\s*"
+            r"(?:sk-)?[A-Za-z0-9_.@#-]{6,}|"
+            r"\bsk-[A-Za-z0-9_.-]{6,}",
             re.IGNORECASE,
         ),
     ),
@@ -52,8 +63,26 @@ _DETECTORS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         "password",
         "sensitive.password",
         re.compile(
-            r"(?:password|passwd|pwd|密码|口令)\s*[:=：]\s*\S+",
+            r"(?:password|passwd|pwd|密\s*码|口\s*令)"
+            r"\s*(?:[:=：]|is|是)?\s*[A-Za-z0-9_@#$%^&*!+.-]{4,}",
             re.IGNORECASE,
+        ),
+    ),
+    (
+        "private_key",
+        "sensitive.private_key",
+        re.compile(
+            r"(?:-{0,5}BEGIN(?:\s+(?:RSA|OPENSSH|EC))?\s+PRIVATE\s+KEY|"
+            r"(?:SSH\s*)?私\s*钥.{0,16}(?:内容|片段|文件|BEGIN|保存|存档|记下))",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "address",
+        "sensitive.address",
+        re.compile(
+            r"(?:家庭住址|家庭地址|家里地址|收件地址|联系地址|住址)"
+            r"\s*[:：]?\s*.{2,40}(?:省|市|区|县|路|街|号|大道)",
         ),
     ),
 )
@@ -100,7 +129,9 @@ class SafetyService:
                 if entity_type == "id_card":
                     id_card_spans.extend(match.span() for match in matches)
 
-        if any(keyword in text for keyword in _SENSITIVE_KEYWORDS):
+        if not entity_types and any(
+            keyword in text for keyword in _SENSITIVE_KEYWORDS
+        ):
             entity_types.append("sensitive_keyword")
             reason_codes.append("sensitive.keyword")
 
@@ -141,9 +172,9 @@ def _sensitive_field_findings(
             if field_type == "password":
                 entity_types.append("password")
                 reason_codes.append("sensitive.password")
-            elif field_type == "api_key":
-                entity_types.append("api_key")
-                reason_codes.append("sensitive.api_key")
+            elif field_type is not None:
+                entity_types.append(field_type)
+                reason_codes.append(f"sensitive.{field_type}")
             child_types, child_reasons = _sensitive_field_findings(child)
             entity_types.extend(child_types)
             reason_codes.extend(child_reasons)
@@ -159,7 +190,11 @@ def _sensitive_field_type(key: str) -> str | None:
     folded = key.casefold()
     if any(marker in key for marker in ("密码", "口令")):
         return "password"
-    if any(marker in key for marker in ("令牌", "私钥", "密钥")):
+    if "私钥" in key:
+        return "private_key"
+    if "令牌" in key:
+        return "token"
+    if "密钥" in key:
         return "api_key"
 
     tokens = [token for token in re.split(r"[^a-z0-9]+", folded) if token]
@@ -181,21 +216,24 @@ def _sensitive_field_type(key: str) -> str | None:
         return "password"
     if compact.endswith(("password", "passwd", "pwd")):
         return "password"
-    if any(token in {"secret", "token"} for token in tokens):
+    if "token" in tokens:
+        return "token"
+    if "secret" in tokens:
         return "api_key"
+    if compact.endswith(("accesstoken", "refreshtoken")):
+        return "token"
+    if compact.endswith("privatekey"):
+        return "private_key"
     if compact.endswith(
         (
             "apikey",
             "apisecret",
-            "accesstoken",
-            "refreshtoken",
             "clientsecret",
-            "privatekey",
         )
     ):
         return "api_key"
     if len(tokens) >= 2 and tokens[-2:] == ["private", "key"]:
-        return "api_key"
+        return "private_key"
     return None
 
 

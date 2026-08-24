@@ -45,7 +45,10 @@ def test_check_keeps_the_frozen_synchronous_signature():
         ("银行卡 6222021234567890123", "bank_card"),
         ("邮箱 alice@example.com", "email"),
         ("api_key=abcdefghijklmnopqrstuv", "api_key"),
+        ("TOKEN：sk-example-token-001", "token"),
         ("password: correct-horse-battery-staple", "password"),
+        ("SSH私钥内容 BEGIN OPENSSH PRIVATE KEY", "private_key"),
+        ("收件地址 上海市浦东新区世纪大道1号", "address"),
         ("请记录家庭住址", "sensitive_keyword"),
     ],
 )
@@ -85,11 +88,11 @@ def test_safe_nested_payload_is_allowed_and_input_is_not_mutated():
         ({"credentials": {"api_key": "short-value"}}, "api_key"),
         ({"db_password": "correct-horse"}, "password"),
         ({"client_secret": "short-value"}, "api_key"),
-        ({"refresh_token": "short-value"}, "api_key"),
-        ({"private_key": "short-value"}, "api_key"),
+        ({"refresh_token": "short-value"}, "token"),
+        ({"private_key": "short-value"}, "private_key"),
         ({"登录密码": "correct-horse"}, "password"),
-        ({"访问令牌": "short-value"}, "api_key"),
-        ({"私钥": "short-value"}, "api_key"),
+        ({"访问令牌": "short-value"}, "token"),
+        ({"私钥": "short-value"}, "private_key"),
     ],
 )
 def test_sensitive_structured_field_names_are_detected(payload, entity_type):
@@ -118,6 +121,36 @@ def test_id_card_span_is_not_reported_again_as_a_bank_card():
 
     assert "id_card" in result.entity_types
     assert "bank_card" not in result.entity_types
+
+
+@pytest.mark.parametrize(
+    ("text", "entity_type"),
+    (
+        ("密 码 是 Example@2026", "password"),
+        ("password\tis\tExamplePass1!", "password"),
+        ("令 牌 = sk-example_sep_token", "token"),
+        ("银行卡 6222-0212-3456-7890-123", "bank_card"),
+        ("手机号 138-0013-8000", "phone"),
+        ("把私钥文件内容记下来 -----BEGIN", "private_key"),
+    ),
+)
+def test_separator_and_format_variants_are_detected(text, entity_type):
+    result = SafetyService().check(_envelope({"text": text}))
+
+    assert result.allowed is False
+    assert entity_type in result.entity_types
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "token 这个词出现在技术讨论但不含密钥值",
+        "输出格式偏好 Markdown，不是密码",
+        "地址栏输入 about:blank 用于测试浏览器",
+    ),
+)
+def test_sensitive_terms_without_values_do_not_false_positive(text):
+    assert SafetyService().check(_envelope({"text": text})).allowed is True
 
 
 def test_result_and_logs_never_expose_sensitive_values(caplog):

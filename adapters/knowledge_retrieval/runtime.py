@@ -11,9 +11,10 @@ from typing import Any, Mapping
 from contracts.schemas.common import MemoryStatus
 from contracts.schemas.provider import VectorQuery
 from modules.knowledge_retrieval.algorithm_v1_1.bm25 import BM25Retriever
-from modules.knowledge_retrieval.algorithm_v1_1.hybrid_retriever import (
-    HybridRetriever as LegacyHybridRetriever,
+from modules.knowledge_retrieval.dense_first_retriever_v1_2 import (
+    DenseFirstRetrieverV12,
 )
+from modules.knowledge_retrieval.memory_flow_v1_2 import MemoryFlowController
 
 
 class AlgorithmEmbeddingBridge:
@@ -111,6 +112,8 @@ class KnowledgeRetrievalRuntime:
         self.embedding = AlgorithmEmbeddingBridge(embedding_provider)
         self.vector = AlgorithmVectorQueryBridge(vector_store)
         self.bm25 = BM25Retriever()
+        self.memory_flow = MemoryFlowController()
+        self._documents: dict[str, dict[str, Any]] = {}
         self._bm25_state = (
             _BM25State(Path(bm25_state_path))
             if bm25_state_path is not None
@@ -120,7 +123,10 @@ class KnowledgeRetrievalRuntime:
             documents = self._bm25_state.load()
             if documents:
                 self.bm25.index(documents)
-        self.hybrid = LegacyHybridRetriever(
+                self._documents.update(
+                    {document["doc_id"]: dict(document) for document in documents}
+                )
+        self.hybrid = DenseFirstRetrieverV12(
             self.embedding,
             self.vector,
             self.bm25,
@@ -129,6 +135,9 @@ class KnowledgeRetrievalRuntime:
     def index_bm25(self, documents: list[dict[str, Any]]) -> None:
         """Index documents and persist the process-local sparse state."""
         self.bm25.index(documents)
+        self._documents.update(
+            {document["doc_id"]: dict(document) for document in documents}
+        )
         if self._bm25_state is not None:
             self._bm25_state.upsert(documents)
 
@@ -137,8 +146,19 @@ class KnowledgeRetrievalRuntime:
         unique_ids = list(dict.fromkeys(memory_ids))
         for memory_id in unique_ids:
             self.bm25.remove(memory_id)
+            self._documents.pop(memory_id, None)
+            self.memory_flow.remove(memory_id)
         if self._bm25_state is not None:
             self._bm25_state.remove(unique_ids)
+
+    def documents_for_user(self, user_id: str) -> list[dict[str, Any]]:
+        """Return active sparse documents for bounded forget previews."""
+        return [
+            dict(document)
+            for document in self._documents.values()
+            if document.get("user_id") == user_id
+            and document.get("status") == MemoryStatus.ACTIVE.value
+        ]
 
 
 class _BM25State:

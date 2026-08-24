@@ -1,4 +1,4 @@
-"""Safe two-stage ForgetService over the V1.1 preview algorithm."""
+"""Safe two-stage ForgetService with V1.2 intent parsing and reranking."""
 
 from __future__ import annotations
 
@@ -22,6 +22,12 @@ from contracts.schemas.forget import (
 from contracts.schemas.retrieval import SearchRequest, SearchResponse
 from modules.preference_safety.algorithm_v1_1.forget_service import (
     ForgetService as LegacyForgetService,
+)
+from modules.preference_safety.forget_intent_v1_2 import (
+    ForgetIntent,
+    matches_scope_qualifier,
+    parse_forget_intent,
+    select_relevant_candidates,
 )
 
 from .errors import (
@@ -49,7 +55,7 @@ class _PlanState:
 
 
 class ForgetServiceAdapter:
-    """Use only legacy preview; storage mutation remains in Orchestrator."""
+    """Build a precise preview; storage mutation remains in Orchestrator."""
 
     def __init__(
         self,
@@ -74,8 +80,9 @@ class ForgetServiceAdapter:
 
     def preview(self, request: ForgetPreviewRequest) -> ForgetPlan:
         validated = ForgetPreviewRequest.model_validate(request)
+        intent = parse_forget_intent(validated.instruction or "")
         retriever = (
-            _ResolverRetriever(self._candidate_resolver)
+            _ResolverRetriever(self._candidate_resolver, intent)
             if self._candidate_resolver is not None
             else None
         )
@@ -104,8 +111,11 @@ class ForgetServiceAdapter:
             ):
                 candidate_ids.append(memory_id.strip())
 
+        legacy_risk = _legacy_risk(raw.get("risk_level"))
+        if intent.scope == "all" and intent.target:
+            legacy_risk = "low"
         risk_level = _max_risk(
-            _legacy_risk(raw.get("risk_level")),
+            legacy_risk,
             _request_risk(validated.instruction, len(candidate_ids)),
         )
         candidates = [
@@ -217,16 +227,20 @@ class ForgetServiceAdapter:
 class _ResolverRetriever:
     """Expose a user-scoped resolver through the legacy retriever shape."""
 
-    def __init__(self, resolver: CandidateResolver) -> None:
+    def __init__(self, resolver: CandidateResolver, intent: ForgetIntent) -> None:
         self._resolver = resolver
+        self._intent = intent
 
     def search(self, request: Mapping[str, Any]) -> dict[str, list[dict]]:
         user_id = str(request.get("user_id", ""))
-        keyword = str(request.get("query", ""))
+        keyword = self._intent.resolver_query or str(request.get("query", ""))
         items: list[dict[str, Any]] = []
         for raw in self._resolver(user_id, keyword):
             item = _resolver_item(raw, user_id)
-            if item is not None:
+            if item is not None and not any(
+                matches_scope_qualifier(exclusion, item)
+                for exclusion in self._intent.exclusions
+            ):
                 items.append(item)
         return {"items": items}
 
@@ -257,6 +271,19 @@ def _candidate_resolver_from_retriever(
         query = keyword.strip()
         if not query:
             return []
+        if query == "__all__" or query.startswith("__all__:"):
+            list_active = getattr(retriever, "list_active_candidates", None)
+            if not callable(list_active):
+                return []
+            rows = [dict(item) for item in list_active(user_id)]
+            qualifier = query.partition(":")[2].strip()
+            if qualifier:
+                rows = [
+                    item
+                    for item in rows
+                    if matches_scope_qualifier(qualifier, item)
+                ]
+            return rows
         digest = hashlib.blake2b(
             f"{user_id}\0{query}".encode("utf-8"),
             digest_size=8,
@@ -271,7 +298,7 @@ def _candidate_resolver_from_retriever(
         response = SearchResponse.model_validate(search(request))
         if response.user_id != user_id:
             return []
-        return [
+        candidates = [
             {
                 "memory_id": item.memory_id,
                 "user_id": item.user_id,
@@ -282,6 +309,11 @@ def _candidate_resolver_from_retriever(
             if item.user_id == user_id
             and item.status is MemoryStatus.ACTIVE
         ]
+        return select_relevant_candidates(
+            query,
+            candidates,
+            degraded=response.degraded,
+        )
 
     return resolve
 
@@ -317,10 +349,26 @@ def _resolver_item(raw: Any, user_id: str) -> dict[str, Any] | None:
 
 
 def _request_risk(instruction: str | None, candidate_count: int) -> str:
-    if instruction and any(
-        word in instruction for word in ("全部", "所有", "一切")
+    intent = parse_forget_intent(instruction or "")
+    if intent.scope == "all":
+        return "medium" if intent.target else "high"
+    if any(
+        cue in intent.target.casefold()
+        for cue in (
+            "密码",
+            "口令",
+            "私钥",
+            "令牌",
+            "token",
+            "api key",
+            "api_key",
+            "身份证",
+            "银行卡",
+        )
     ):
         return "high"
+    if intent.exclusions:
+        return "medium"
     if candidate_count > 10:
         return "high"
     if candidate_count > 5:

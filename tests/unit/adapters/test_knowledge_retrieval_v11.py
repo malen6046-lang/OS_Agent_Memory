@@ -21,8 +21,8 @@ from contracts.schemas.retrieval import SearchRequest
 from modules.knowledge_retrieval.algorithm_v1_1.knowledge_service import (
     KnowledgeService as LegacyKnowledgeService,
 )
-from modules.knowledge_retrieval.algorithm_v1_1.hybrid_retriever import (
-    HybridRetriever as LegacyHybridRetriever,
+from modules.knowledge_retrieval.dense_first_retriever_v1_2 import (
+    DenseFirstRetrieverV12,
 )
 
 
@@ -247,7 +247,7 @@ def test_dense_success_preserves_vector_ranking_without_bm25_fusion() -> None:
         def search(self, *args, **kwargs):
             raise AssertionError("BM25 must not run when dense retrieval succeeds")
 
-    result = LegacyHybridRetriever(Embedding(), VectorStore(), BM25()).search(
+    result = DenseFirstRetrieverV12(Embedding(), VectorStore(), BM25()).search(
         {"query": "query", "user_id": "user-1", "top_k": 2}
     )
 
@@ -286,7 +286,7 @@ def test_bm25_is_used_only_when_dense_provider_fails() -> None:
                 }
             ]
 
-    result = LegacyHybridRetriever(Embedding(), VectorStore(), BM25()).search(
+    result = DenseFirstRetrieverV12(Embedding(), VectorStore(), BM25()).search(
         {"query": "query", "user_id": "user-1", "top_k": 2}
     )
 

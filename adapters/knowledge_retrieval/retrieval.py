@@ -122,6 +122,26 @@ class HybridRetrieverAdapter:
                 continue
             public_attributes = dict(record.attributes)
             public_attributes.pop("embedding", None)
+            flow_state = self.runtime.memory_flow.snapshot(
+                record.memory_id,
+                record.user_id,
+            )
+            if flow_state is None:
+                flow_state = self.runtime.memory_flow.register(
+                    record.memory_id,
+                    record.user_id,
+                    importance=record.importance,
+                    initial_tier=public_attributes.get(
+                        "memory_tier",
+                        "working",
+                    ),
+                    now=record.valid_from,
+                )
+            flow_state = self.runtime.memory_flow.observe_access(
+                record.memory_id,
+                record.user_id,
+            ) or flow_state
+            public_attributes["memory_tier"] = flow_state.tier.value
             items.append(
                 SearchHit(
                     memory_id=record.memory_id,
@@ -143,6 +163,44 @@ class HybridRetrieverAdapter:
             provider="algorithm-v1.1-hybrid",
             degraded=bool(meta.get("degraded", False)),
         )
+
+    def list_active_candidates(self, user_id: str) -> list[dict[str, Any]]:
+        """Enumerate only repository-confirmed active records for forget-all."""
+        owner = str(user_id).strip()
+        if not owner:
+            return []
+        with self.runtime.lock:
+            documents = self.runtime.documents_for_user(owner)
+        memory_ids = [str(document["doc_id"]) for document in documents]
+        records = self._repository.get_by_ids(
+            owner,
+            memory_ids,
+            [MemoryStatus.ACTIVE],
+        )
+        records_by_id = {
+            record.memory_id: MemoryRecord.model_validate(record)
+            for record in records
+        }
+        candidates: list[dict[str, Any]] = []
+        for memory_id in memory_ids:
+            record = records_by_id.get(memory_id)
+            if record is None:
+                continue
+            attributes = dict(record.attributes)
+            attributes.pop("embedding", None)
+            flow_state = self.runtime.memory_flow.snapshot(memory_id, owner)
+            if flow_state is not None:
+                attributes["memory_tier"] = flow_state.tier.value
+            candidates.append(
+                {
+                    "memory_id": memory_id,
+                    "user_id": owner,
+                    "content_text": record.content_text,
+                    "score": 1.0,
+                    "attributes": attributes,
+                }
+            )
+        return candidates
 
 
 def build_hybrid_retriever(

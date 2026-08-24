@@ -1,4 +1,4 @@
-"""Frozen SafetyService Protocol over the unmodified V1.1 detector."""
+"""Frozen SafetyService Protocol over the V1.2 detector."""
 
 from __future__ import annotations
 
@@ -7,21 +7,28 @@ from typing import Any
 
 from contracts.schemas.envelope import Envelope
 from contracts.schemas.safety import SafetyCheckResult
-from modules.preference_safety.algorithm_v1_1.safety_service import (
-    SafetyService as LegacySafetyService,
+from modules.preference_safety.safety_service import (
+    SafetyService as ContractSafetyService,
 )
 
 from ._common import envelope_payload_text, unique_strings
 
 
 class SafetyServiceAdapter:
-    """Map legacy entity findings to a non-sensitive frozen decision."""
+    """Use V1.2 by default and retain explicit legacy-injection support."""
 
     def __init__(self, legacy_service: Any | None = None) -> None:
-        self._legacy = legacy_service or LegacySafetyService()
+        self._legacy = legacy_service
+        self._service = (
+            ContractSafetyService() if legacy_service is None else None
+        )
 
     def check(self, envelope: Envelope) -> SafetyCheckResult:
         event = Envelope.model_validate(envelope)
+        if self._service is not None:
+            return self._service.check(event)
+
+        assert self._legacy is not None
         raw = self._legacy.check(envelope_payload_text(event.payload))
         if not isinstance(raw, Mapping):
             raise TypeError("legacy safety check must return a mapping")

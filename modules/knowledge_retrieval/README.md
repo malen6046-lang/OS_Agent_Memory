@@ -12,3 +12,12 @@ hydration, user/status isolation, and provider shape bridges.
 The older files at this directory root remain for branch history and their
 original unit tests; the `algorithm_modules` profile selects only the
 versioned snapshot through the contract adapters.
+
+V1.2 enhancements live outside the immutable donor:
+
+- `dense_first_retriever_v1_2.py` preserves Kylin GTE dense ranking and uses
+  BM25 only when the provider fails.
+- `conflict_classifier_v1_2.py` uses open value domains and sends mutually
+  exclusive high-risk preferences to manual review.
+- `memory_flow_v1_2.py` tracks working, episodic, and semantic tiers. Current
+  tier is exposed through the existing `MemoryRecord.attributes` boundary.
