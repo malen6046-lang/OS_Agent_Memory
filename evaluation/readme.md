@@ -1,4 +1,4 @@
-# evaluation/（Dataset V0.1）
+# evaluation/（Dataset V0.3）
 
 ## 结构
 
@@ -11,6 +11,7 @@ evaluation/
 │   ├── conflict.jsonl
 │   ├── forget.jsonl
 │   └── security.jsonl
+├── scenarios/               # 五场景 + 六回合联调剧本
 ├── loaders.py / metrics.py
 ├── *_eval.py / run_all.py   # 评测逻辑（读 dataset/）
 └── reports/                 # 必须是目录
@@ -19,7 +20,7 @@ evaluation/
 ## 运行（CPython 3.12）
 
 ```bash
-cd OS_Agent_Memory-evaluation-dataset
+cd OS_Agent_Memory
 python3.12 -m evaluation.run_all --split dev
 python3.12 -m evaluation.run_all --split validation
 python3.12 -m evaluation.check_freeze
@@ -36,7 +37,8 @@ E2E 清单：`python -m evaluation.check_e2e_ready` → `E2E跑通清单.md`。
 - `evaluation/reports/evaluation_report.md`（正式报告）
 - `evaluation/reports/result.csv`（指标表）
 
-数据规范：`dataset/README.md`；复核：`复核记录.md`；端到端场景：`scenarios/`。  
+数据规范：`dataset/README.md`；**正式参赛说明**：[`../docs/测试数据集说明.md`](../docs/测试数据集说明.md)。  
+复核：`复核记录.md`；端到端场景：`scenarios/`（SCN-01～05 均含六回合剧本）。  
 联调注入：`联调注入说明.md`；第二人抽查：`第二人抽查清单.md`。  
 单测：`python -m pytest tests/unit/evaluation -q`。  
 当前分数为 **baseline**，`status=baseline_not_competition_claim`，不可写成已达红线。

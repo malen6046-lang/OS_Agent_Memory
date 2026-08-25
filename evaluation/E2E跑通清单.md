@@ -10,13 +10,13 @@
 
 ## 数据层就绪（4号）
 
-| 场景 | user_id | 数据层 | 实机联调 | 说明 |
-|------|---------|--------|----------|------|
-| SCN-01 开发助手 | `usr_kylin_004` | ✅ | dataset_gold_ok_e2e_pending | 引用齐全 / 用户隔离 OK |
-| SCN-02 办公助手 | `usr_kylin_005` | ✅ | dataset_gold_ok_e2e_pending | 引用齐全 / 用户隔离 OK |
-| SCN-03 系统维护助手 | `usr_kylin_003` | ✅ | dataset_gold_ok_e2e_pending | 引用齐全 / 用户隔离 OK |
-| SCN-04 知识问答 | `usr_corpus_shared` | ✅ | baseline_retrieval_only | 引用齐全 / 用户隔离 OK |
-| SCN-05 遗忘操作 | `usr_kylin_003` | ✅ | in_memory_forget_ok_real_db_pending | 引用齐全 / 用户隔离 OK |
+| 场景 | user_id | 定位 | 回合数 | 数据层 | 实机联调 | 说明 |
+|------|---------|------|--------|--------|----------|------|
+| SCN-01 开发助手 | `usr_kylin_004` | 旗舰全链路 | 6 | ✅ | dataset_gold_ok_e2e_pending | 引用齐全 / 用户隔离 OK |
+| SCN-02 办公助手 | `usr_kylin_005` | 完整 E2E | 8 | ✅ | dataset_gold_ok_e2e_pending | 引用齐全 / 用户隔离 OK |
+| SCN-03 系统维护助手 | `usr_kylin_003` | 完整 E2E | 7 | ✅ | dataset_gold_ok_e2e_pending | 引用齐全 / 用户隔离 OK |
+| SCN-04 知识问答 | `usr_corpus_shared` | 检索专项 | 6 | ✅ | baseline_retrieval_only | 引用齐全 / 用户隔离 OK |
+| SCN-05 遗忘操作 | `usr_kylin_003` | 遗忘专项 | 6 | ✅ | in_memory_forget_ok_real_db_pending | 引用齐全 / 用户隔离 OK |
 
 ## 每场景必跑检查（1/2号联调时勾选）
 
@@ -48,6 +48,8 @@ python -m evaluation.run_all --split dev
 python -m evaluation.collect_failures --split dev
 python -m evaluation.check_scenario_user_consistency
 python -m evaluation.check_e2e_ready
+python -m evaluation.run_scenario --id SCN-01
+python -m evaluation.run_scenario --validate
 ```
 
 联调完成后更新各场景 md 末尾「联调回填」，并改 `scenarios.json` 的 `actual_result_status`。

@@ -1,14 +1,14 @@
-# Dataset V0.1 说明（字段 · 标注 · 判定规则）
+# Dataset V0.3 说明（字段 · 标注 · 判定规则）
 
 **项目**：XA-202612 OS Agent 记忆优化及高效应用研究  
 **平台**：银河麒麟桌面 V11（x86_64）  
 **契约**：模块接口规划 V1.2.1 Schema + V1.2.2 冻结规范  
 **格式标准**：UTF-8 **JSONL**（一行一条 JSON 对象）  
 **运行时**：CPython 3.12.x  
-**版本**：0.1.0  
-**日期**：2026-08-03  
+**版本**：0.3.0（`dataset_release=V0.3-dev-quality-expand`）  
+**日期**：2026-08-25  
 
-> 样本为原创麒麟 OS Agent 场景；公开集（LaMP / BEIR / SNLI·MNLI / TOFU / Tellina）
+> V0.3 在 dev 新增 48 条质量样本（隐式偏好/同义检索/冲突弱类/遗忘边界/安全负例/语料扩充）；**validation / final_test 仍冻结**。
 
 ---
 
@@ -16,12 +16,14 @@
 
 | 文件 | 任务 | 条数 | 主指标 |
 |------|------|------|--------|
-| `preference.jsonl` | 偏好提取 | 57 | exact-match、micro/macro F1、临时指令误记率 |
-| `knowledge_corpus.jsonl` | 知识语料（MemoryRecord） | 60 | 被检索语料 |
-| `retrieval_queries.jsonl` | 知识检索 | 78 | Recall@K、MRR、延迟 |
-| `conflict.jsonl` | 知识/偏好冲突 | 23 | joint_accuracy（relation+strategy） |
-| `forget.jsonl` | 精准遗忘 | 24 | preview P/R、execute/残留 |
-| `security.jsonl` | 敏感过滤 | 40 | block + entity_type |
+| `preference.jsonl` | 偏好提取 | 67 | exact-match、micro/macro F1、临时指令误记率 |
+| `knowledge_corpus.jsonl` | 知识语料（MemoryRecord） | 68 | 被检索语料 |
+| `retrieval_queries.jsonl` | 知识检索 | 90 | Recall@K、MRR、延迟 |
+| `conflict.jsonl` | 知识/偏好冲突 | 29 | joint_accuracy（relation+strategy） |
+| `forget.jsonl` | 精准遗忘 | 30 | preview P/R、execute/残留 |
+| `security.jsonl` | 敏感过滤 | 46 | block + entity_type |
+
+**dev 划分合计**：207 条任务样本（不含语料）。任务样本总计 262 条。
 
 端到端场景见 [`../scenarios/`](../scenarios/)（开发助手 / 办公助手 / 系统维护 / 知识问答 / 遗忘操作）。
 

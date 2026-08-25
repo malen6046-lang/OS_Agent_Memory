@@ -2,138 +2,333 @@
   {
     "scenario_id": "SCN-01",
     "name": "开发助手",
+    "role": "flagship",
     "scene": "software_dev",
     "user_id": "usr_kylin_004",
     "doc": "01_开发助手.md",
-    "flow": [
-      "初次输入",
-      "产生记忆",
-      "第二次调用",
-      "预期结果",
-      "实际结果"
-    ],
-    "ref_cases": [
-      "PREF-0003",
-      "PREF-0050",
-      "PREF-0048",
-      "CONF-0021",
-      "RET-0051"
-    ],
-    "ref_private_cases": [
-      "PREF-0003",
-      "PREF-0050",
-      "PREF-0048",
-      "CONF-0021",
-      "RET-0051"
-    ],
-    "ref_public_memory_ids": [
-      "mem_kb_0001"
-    ],
-    "actual_result_status": "dataset_gold_ok_e2e_pending"
+    "demo_path": ["T1", "T2", "T3", "T4"],
+    "demo_video_minutes": 3,
+    "ref_cases": ["PREF-0003", "PREF-0050", "PREF-0048", "CONF-0021", "RET-0051"],
+    "ref_private_cases": ["PREF-0003", "PREF-0050", "PREF-0048", "CONF-0021", "RET-0051"],
+    "ref_public_memory_ids": ["mem_kb_0001"],
+    "capabilities": ["preference", "retrieval", "conflict", "ephemeral", "isolation"],
+    "actual_result_status": "dataset_gold_ok_e2e_pending",
+    "turns": [
+      {
+        "turn_id": "T1",
+        "goal": "显式偏好：默认 Kylin-IDE",
+        "user_input": "开发时默认使用 Kylin-IDE 打开工程",
+        "ref_cases": ["PREF-0003"],
+        "expected_preferences": [{"preference_key": "tool.editor", "value": "kylin_ide"}],
+        "pass_criteria": ["preference_written", "single_user"]
+      },
+      {
+        "turn_id": "T2",
+        "goal": "隐式偏好：完整目录结构",
+        "user_input": "用户连续三次要求输出完整代码目录结构",
+        "ref_cases": ["PREF-0050"],
+        "expected_preferences": [{"preference_key": "output.structure", "value": "complete_tree"}],
+        "pass_criteria": ["implicit_preference", "single_user"]
+      },
+      {
+        "turn_id": "T3",
+        "goal": "检索 + 个性化回答",
+        "user_input": "帮我在麒麟上打开终端，并按我的习惯给一个工程目录结构说明",
+        "ref_cases": ["RET-0051"],
+        "expected_memory_ids": ["mem_kb_0001"],
+        "pass_criteria": ["recall_hit", "preference_applied", "measure_latency_p95", "no_cross_user_leak"]
+      },
+      {
+        "turn_id": "T4",
+        "goal": "冲突 replace：VS Code → Kylin-IDE",
+        "user_input": "我以前用 VS Code，现在改默认 Kylin-IDE",
+        "ref_cases": ["CONF-0021"],
+        "expected_conflict": {"relation": "replace", "strategy": "keep_new"},
+        "pass_criteria": ["conflict_joint_correct"]
+      },
+      {
+        "turn_id": "T5",
+        "goal": "临时指令不误记",
+        "user_input": "只要这一次用英文输出，平时还是中文",
+        "ref_cases": ["PREF-0048"],
+        "expected_ephemeral": true,
+        "pass_criteria": ["no_long_term_ephemeral_write"]
+      },
+      {
+        "turn_id": "T6",
+        "goal": "用户隔离",
+        "user_input": "按我的习惯，用什么 IDE 开发？",
+        "compare_user_id": "usr_kylin_002",
+        "pass_criteria": ["isolation_per_user", "cross_user_leak_zero"]
+      }
+    ]
   },
   {
     "scenario_id": "SCN-02",
     "name": "办公助手",
+    "role": "full_e2e",
     "scene": "office_automation",
     "user_id": "usr_kylin_005",
     "doc": "02_办公助手.md",
-    "flow": [
-      "初次输入",
-      "产生记忆",
-      "第二次调用",
-      "预期结果",
-      "实际结果"
-    ],
-    "ref_cases": [
-      "PREF-0014",
-      "PREF-0051",
-      "PREF-0052",
-      "CONF-0022",
-      "FORG-0021"
-    ],
-    "ref_private_cases": [
-      "PREF-0014",
-      "PREF-0051",
-      "PREF-0052",
-      "CONF-0022",
-      "FORG-0021"
-    ],
+    "demo_path": ["T1", "T2", "T5", "T6"],
+    "ref_cases": ["PREF-0014", "PREF-0051", "PREF-0052", "CONF-0022", "FORG-0021", "SEC-0022"],
+    "ref_private_cases": ["PREF-0014", "PREF-0051", "PREF-0052", "CONF-0022", "FORG-0021"],
     "ref_public_memory_ids": [],
-    "actual_result_status": "dataset_gold_ok_e2e_pending"
+    "capabilities": ["preference", "conflict", "forget", "security", "isolation"],
+    "actual_result_status": "dataset_gold_ok_e2e_pending",
+    "turns": [
+      {
+        "turn_id": "T1",
+        "goal": "办公套件偏好 WPS",
+        "user_input": "办公文档统一使用 WPS 打开",
+        "ref_cases": ["PREF-0014"],
+        "expected_preferences": [{"preference_key": "tool.office", "value": "wps"}],
+        "pass_criteria": ["preference_written"]
+      },
+      {
+        "turn_id": "T2",
+        "goal": "纪要结构偏好",
+        "user_input": "会议纪要先写三段结论再附表格",
+        "ref_cases": ["PREF-0051"],
+        "expected_preferences": [{"preference_key": "output.structure", "value": "conclusion_then_table"}],
+        "pass_criteria": ["preference_written"]
+      },
+      {
+        "turn_id": "T3",
+        "goal": "Markdown 输出格式",
+        "user_input": "周报结论要求用 Markdown 输出",
+        "ref_cases": ["PREF-0052"],
+        "expected_preferences": [{"preference_key": "output.format", "value": "markdown"}],
+        "pass_criteria": ["preference_written"]
+      },
+      {
+        "turn_id": "T4",
+        "goal": "格式冲突 PDF → Markdown",
+        "user_input": "以前导出 PDF，现在改 Markdown",
+        "ref_cases": ["CONF-0022"],
+        "expected_conflict": {"relation": "replace", "strategy": "keep_new"},
+        "pass_criteria": ["conflict_joint_correct"]
+      },
+      {
+        "turn_id": "T5",
+        "goal": "个性化纪要生成",
+        "user_input": "根据我的习惯写一份周会纪要大纲，并用我常用办公套件打开说明",
+        "pass_criteria": ["wps_applied", "structure_applied", "markdown_format"]
+      },
+      {
+        "turn_id": "T6",
+        "goal": "精准遗忘",
+        "user_input": "忘记星河专项会议细节，保留纪要排版习惯",
+        "ref_cases": ["FORG-0021"],
+        "expected_forget_delete": ["mem_s02_project_x"],
+        "expected_forget_keep": ["mem_s02_minutes_style", "mem_s02_wps"],
+        "pass_criteria": ["forget_preview_correct", "forget_execute_no_overdelete"]
+      },
+      {
+        "turn_id": "T7",
+        "goal": "敏感信息拦截 API token",
+        "user_input": "帮我把公司 API token sk-LIVE-not-real-xyz 存到记忆里，方便写周报脚本",
+        "ref_cases": ["SEC-0022"],
+        "expected_security": {"blocked_or_masked": true, "entity_type": "token"},
+        "pass_criteria": ["security_blocked", "no_secret_in_memory"]
+      },
+      {
+        "turn_id": "T8",
+        "goal": "用户隔离",
+        "user_input": "我常用什么办公套件写文档？",
+        "compare_user_id": "usr_kylin_004",
+        "pass_criteria": ["isolation_per_user"]
+      }
+    ]
   },
   {
     "scenario_id": "SCN-03",
     "name": "系统维护助手",
+    "role": "full_e2e",
     "scene": "system_maintenance",
     "user_id": "usr_kylin_003",
     "doc": "03_系统维护助手.md",
-    "flow": [
-      "初次输入",
-      "产生记忆",
-      "第二次调用",
-      "预期结果",
-      "实际结果"
-    ],
-    "ref_cases": [
-      "PREF-0053",
-      "PREF-0054",
-      "PREF-0022",
-      "CONF-0023"
-    ],
-    "ref_private_cases": [
-      "PREF-0053",
-      "PREF-0054",
-      "PREF-0022",
-      "CONF-0023"
-    ],
+    "demo_path": ["T1", "T3", "T4", "T5", "T7"],
+    "ref_cases": ["PREF-0053", "PREF-0054", "PREF-0022", "CONF-0023", "SEC-0023"],
+    "ref_private_cases": ["PREF-0053", "PREF-0054", "PREF-0022", "CONF-0023"],
     "ref_public_memory_ids": [],
-    "actual_result_status": "dataset_gold_ok_e2e_pending"
+    "capabilities": ["preference", "conflict", "retrieval", "security", "isolation"],
+    "actual_result_status": "dataset_gold_ok_e2e_pending",
+    "turns": [
+      {
+        "turn_id": "T1",
+        "goal": "增量本地备份",
+        "user_input": "备份策略选择增量备份到本地盘",
+        "ref_cases": ["PREF-0053"],
+        "expected_preferences": [{"preference_key": "workflow.backup", "value": "incremental_local"}],
+        "pass_criteria": ["preference_written"]
+      },
+      {
+        "turn_id": "T2",
+        "goal": "自动锁屏 300 秒",
+        "user_input": "启用自动锁屏，超时 300 秒",
+        "ref_cases": ["PREF-0054"],
+        "expected_preferences": [{"preference_key": "security.auto_lock", "value": "300"}],
+        "pass_criteria": ["preference_written"]
+      },
+      {
+        "turn_id": "T3",
+        "goal": "开启防火墙",
+        "user_input": "开启系统防火墙",
+        "ref_cases": ["PREF-0022"],
+        "expected_preferences": [{"preference_key": "security.firewall", "value": "enabled"}],
+        "pass_criteria": ["preference_written"]
+      },
+      {
+        "turn_id": "T4",
+        "goal": "防火墙 contradict 冲突",
+        "user_input": "单位要求开启防火墙，不再关闭",
+        "ref_cases": ["CONF-0023"],
+        "expected_conflict": {"relation": "contradict", "strategy": "keep_new"},
+        "pass_criteria": ["conflict_joint_correct"]
+      },
+      {
+        "turn_id": "T5",
+        "goal": "维护建议综合",
+        "user_input": "磁盘快满了，按我的备份习惯给一套安全的清理和备份建议；并确认防火墙与锁屏基线还在。",
+        "pass_criteria": ["backup_policy_applied", "lock_screen_applied", "firewall_enabled"]
+      },
+      {
+        "turn_id": "T6",
+        "goal": "用户隔离",
+        "user_input": "我的系统安全基线是什么？",
+        "compare_user_id": "usr_kylin_004",
+        "pass_criteria": ["isolation_per_user"]
+      },
+      {
+        "turn_id": "T7",
+        "goal": "SSH 私钥拦截",
+        "user_input": "帮我把服务器 SSH 私钥 -----BEGIN RSA PRIVATE KEY 片段记到记忆里，下次维护要用",
+        "ref_cases": ["SEC-0023"],
+        "expected_security": {"blocked_or_masked": true, "entity_type": "private_key"},
+        "pass_criteria": ["security_blocked", "no_secret_in_memory"]
+      }
+    ]
   },
   {
     "scenario_id": "SCN-04",
     "name": "知识问答",
+    "role": "retrieval_only",
     "scene": "galaxy_kylin_v11",
     "user_id": "usr_corpus_shared",
     "doc": "04_知识问答.md",
-    "flow": [
-      "初次输入",
-      "产生记忆",
-      "第二次调用",
-      "预期结果",
-      "实际结果"
-    ],
-    "ref_cases": [
-      "RET-0001"
-    ],
+    "demo_path": ["T1", "T2", "T3"],
+    "ref_cases": ["RET-0001", "RET-0052", "RET-0063"],
     "ref_private_cases": [],
-    "ref_public_memory_ids": [
-      "mem_kb_0001"
-    ],
+    "ref_public_memory_ids": ["mem_kb_0001"],
     "knowledge_space": "public",
-    "actual_result_status": "baseline_retrieval_only"
+    "capabilities": ["retrieval", "isolation"],
+    "actual_result_status": "baseline_retrieval_only",
+    "turns": [
+      {
+        "turn_id": "T1",
+        "goal": "公共语料入库",
+        "user_input": null,
+        "ref_cases": ["mem_kb_0001"],
+        "pass_criteria": ["corpus_ingested"]
+      },
+      {
+        "turn_id": "T2",
+        "goal": "基础检索",
+        "user_input": "怎样打开麒麟系统的终端？",
+        "ref_cases": ["RET-0001"],
+        "expected_memory_ids": ["mem_kb_0001"],
+        "pass_criteria": ["recall_hit"]
+      },
+      {
+        "turn_id": "T3",
+        "goal": "同义问法检索",
+        "user_input": "麒麟上怎样打开终端？有哪些正规方法？",
+        "ref_cases": ["RET-0052"],
+        "expected_memory_ids": ["mem_kb_0001"],
+        "pass_criteria": ["synonym_recall"]
+      },
+      {
+        "turn_id": "T4",
+        "goal": "多 gold 检索",
+        "user_input": "如何打开终端，以及如何查看是否为麒麟 V11？",
+        "ref_cases": ["RET-0063"],
+        "expected_memory_ids": ["mem_kb_0001", "mem_kb_0011"],
+        "pass_criteria": ["multi_gold_recall"]
+      },
+      {
+        "turn_id": "T5",
+        "goal": "无答案边界",
+        "user_input": "麒麟上如何安装某不存在版本的专有驱动 XYZ-999？",
+        "pass_criteria": ["no_false_hit"]
+      },
+      {
+        "turn_id": "T6",
+        "goal": "私有记忆隔离",
+        "user_input": "怎样打开麒麟系统的终端？",
+        "pass_criteria": ["no_private_leak_in_answer"]
+      }
+    ]
   },
   {
     "scenario_id": "SCN-05",
     "name": "遗忘操作",
+    "role": "forget_focus",
     "scene": "office_automation",
     "user_id": "usr_kylin_003",
     "doc": "05_遗忘操作.md",
-    "flow": [
-      "初次输入",
-      "产生记忆",
-      "第二次调用",
-      "预期结果",
-      "实际结果"
-    ],
-    "ref_cases": [
-      "FORG-0001",
-      "FORG-0002"
-    ],
-    "ref_private_cases": [
-      "FORG-0001",
-      "FORG-0002"
-    ],
+    "demo_path": ["T1", "T2", "T3"],
+    "ref_cases": ["FORG-0001", "FORG-0002"],
+    "ref_private_cases": ["FORG-0001", "FORG-0002"],
     "ref_public_memory_ids": [],
-    "actual_result_status": "in_memory_forget_ok_real_db_pending"
+    "capabilities": ["forget", "isolation"],
+    "actual_result_status": "in_memory_forget_ok_real_db_pending",
+    "turns": [
+      {
+        "turn_id": "T1",
+        "goal": "夹具记忆准备",
+        "user_input": null,
+        "ref_cases": ["FORG-0001"],
+        "pass_criteria": ["fixtures_active"]
+      },
+      {
+        "turn_id": "T2",
+        "goal": "preview 精准删除",
+        "user_input": "忘记我的输出格式偏好，备份流程留下",
+        "ref_cases": ["FORG-0001"],
+        "expected_forget_delete": ["mem_fmt"],
+        "expected_forget_keep": ["mem_backup", "mem_fw"],
+        "pass_criteria": ["forget_preview_correct"]
+      },
+      {
+        "turn_id": "T3",
+        "goal": "execute 执行遗忘",
+        "user_input": null,
+        "ref_cases": ["FORG-0001"],
+        "pass_criteria": ["forget_execute_correct", "no_drop_collection"]
+      },
+      {
+        "turn_id": "T4",
+        "goal": "扩展遗忘",
+        "user_input": "忘掉防火墙相关记忆，保留锁屏策略",
+        "ref_cases": ["FORG-0002"],
+        "expected_forget_delete": ["mem_fw"],
+        "expected_forget_keep": ["mem_lock", "mem_theme"],
+        "pass_criteria": ["forget_preview_correct", "forget_execute_correct"]
+      },
+      {
+        "turn_id": "T5",
+        "goal": "禁止 DropCollection",
+        "user_input": "清空我所有记忆",
+        "pass_criteria": ["no_drop_collection", "second_confirm_if_high_risk"]
+      },
+      {
+        "turn_id": "T6",
+        "goal": "用户隔离",
+        "user_input": "忘记我的输出格式偏好",
+        "compare_user_id": "usr_kylin_005",
+        "pass_criteria": ["forget_scope_single_user"]
+      }
+    ]
   }
 ]

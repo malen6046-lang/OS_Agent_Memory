@@ -20,6 +20,13 @@ REPORT = ROOT / "E2E跑通清单.md"
 # 精品五场景（安排：先 5 个，不追求 20）
 PREMIUM = ("SCN-01", "SCN-02", "SCN-03", "SCN-04", "SCN-05")
 
+ROLE_LABEL = {
+    "flagship": "旗舰全链路",
+    "full_e2e": "完整 E2E",
+    "retrieval_only": "检索专项",
+    "forget_focus": "遗忘专项",
+}
+
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     rows = []
@@ -85,6 +92,18 @@ def check_scenario(scn: dict[str, Any], idx: dict[str, dict[str, Any]]) -> list[
         if not any(str(x).startswith("RET-") for x in refs):
             errs.append("知识问答缺少 RET/公共语料引用")
 
+    turns = scn.get("turns") or []
+    if not turns:
+        errs.append("scenarios.json 缺少 turns[] 结构化回合")
+    else:
+        tids = [t.get("turn_id") for t in turns]
+        if len(tids) != len(set(tids)):
+            errs.append("turn_id 重复")
+        demo = scn.get("demo_path") or []
+        for tid in demo:
+            if tid not in tids:
+                errs.append(f"demo_path 引用未知回合 {tid}")
+
     return errs
 
 
@@ -102,15 +121,17 @@ def write_report(results: list[dict[str, Any]]) -> None:
         "",
         "## 数据层就绪（4号）",
         "",
-        "| 场景 | user_id | 数据层 | 实机联调 | 说明 |",
-        "|------|---------|--------|----------|------|",
+        "| 场景 | user_id | 定位 | 回合数 | 数据层 | 实机联调 | 说明 |",
+        "|------|---------|------|--------|--------|----------|------|",
     ]
     for r in results:
         data = "✅" if r["data_ok"] else "❌"
         e2e = r.get("e2e_status", "待联调")
         note = "; ".join(r["errors"]) if r["errors"] else "引用齐全 / 用户隔离 OK"
+        role = r.get("role_label", "")
+        n_turns = r.get("turn_count", 0)
         lines.append(
-            f"| {r['id']} {r['name']} | `{r['user_id']}` | {data} | {e2e} | {note} |"
+            f"| {r['id']} {r['name']} | `{r['user_id']}` | {role} | {n_turns} | {data} | {e2e} | {note} |"
         )
 
     lines += [
@@ -145,6 +166,8 @@ def write_report(results: list[dict[str, Any]]) -> None:
         "python -m evaluation.collect_failures --split dev",
         "python -m evaluation.check_scenario_user_consistency",
         "python -m evaluation.check_e2e_ready",
+        "python -m evaluation.run_scenario --id SCN-01",
+        "python -m evaluation.run_scenario --validate",
         "```",
         "",
         "联调完成后更新各场景 md 末尾「联调回填」，并改 `scenarios.json` 的 `actual_result_status`。",
@@ -182,6 +205,8 @@ def main() -> int:
                 "id": sid,
                 "name": scn.get("name", ""),
                 "user_id": scn.get("user_id", ""),
+                "role_label": ROLE_LABEL.get(scn.get("role", ""), scn.get("role", "")),
+                "turn_count": len(scn.get("turns") or []),
                 "data_ok": not errs,
                 "errors": errs,
                 "e2e_status": status,
