@@ -125,25 +125,31 @@ def conf(
     strategy: str,
     *,
     tags: list[str] | None = None,
+    new_valid_from: str = "2026-07-20T15:00:00+08:00",
+    new_confidence: float = 0.9,
+    new_revision: int = 1,
 ) -> dict:
     old_id = f"mem_old_{cid.replace('-', '_').lower()}"
     new_id = f"mem_new_{cid.replace('-', '_').lower()}"
 
-    def mem(mid: str, kv: dict) -> dict:
+    def mem(mid: str, kv: dict, *, side: str) -> dict:
         key = list(kv.keys())[0]
-        label = f"{key}={kv[key]}"
+        val = kv[key]
+        side_label = "旧记忆" if side == "old" else "新记忆"
         return {
             "memory_id": mid,
             "user_id": uid,
             "memory_kind": "preference",
             "subtype": "operation_habit",
-            "content_text": label,
-            "content": kv,
+            "content_text": f"{side_label}：{key}={val}",
+            "content": {"preference_key": key, "value": val},
             "status": "active",
-            "confidence": 0.85,
+            "confidence": 0.85 if side == "old" else new_confidence,
             "importance": 0.6,
-            "revision": 1,
-            "valid_from": "2026-07-01T09:00:00+08:00",
+            "revision": 1 if side == "old" else new_revision,
+            "valid_from": "2026-07-01T09:00:00+08:00"
+            if side == "old"
+            else new_valid_from,
             "valid_to": None,
             "expires_at": None,
             "scene_tags": ["galaxy_kylin_v11"],
@@ -159,8 +165,8 @@ def conf(
         "split": "dev",
         "user_id": uid,
         "scene": scene,
-        "old": mem(old_id, old_kv),
-        "new": mem(new_id, new_kv),
+        "old": mem(old_id, old_kv, side="old"),
+        "new": mem(new_id, new_kv, side="new"),
         "expected": {
             "relation": relation,
             "strategy": strategy,
@@ -344,12 +350,69 @@ NEW_RETRIEVAL = [
 ]
 
 NEW_CONFLICT = [
-    conf("CONF-0024", "usr_kylin_001", "office_automation", {"tool.office": "libreoffice"}, {"tool.office": "wps"}, "duplicate", "keep_old"),
-    conf("CONF-0025", "usr_kylin_002", "software_dev", {"tool.editor": "vscode"}, {"tool.editor": "kylin_ide"}, "support", "merge", tags=["support"]),
-    conf("CONF-0026", "usr_kylin_003", "system_maintenance", {"workflow.backup": "full_local"}, {"workflow.backup": "incremental_local"}, "extend", "merge", tags=["extend"]),
-    conf("CONF-0027", "usr_kylin_004", "software_dev", {"output.structure": "complete_tree"}, {"output.structure": "complete_tree"}, "duplicate", "keep_old", tags=["duplicate"]),
-    conf("CONF-0028", "usr_kylin_005", "office_automation", {"output.format": "markdown"}, {"tool.browser": "firefox"}, "unrelated", "keep_old", tags=["unrelated"]),
-    conf("CONF-0029", "usr_kylin_001", "galaxy_kylin_v11", {"ui.theme": "dark"}, {"ui.theme": "light"}, "contradict", "keep_new", tags=["contradict"]),
+    conf(
+        "CONF-0024",
+        "usr_kylin_001",
+        "office_automation",
+        {"tool.office": "libreoffice"},
+        {"tool.office": "wps"},
+        "replace",
+        "keep_new",
+        tags=["replace"],
+    ),
+    conf(
+        "CONF-0025",
+        "usr_kylin_002",
+        "software_dev",
+        {"tool.editor": "vscode"},
+        {"tool.editor": "kylin_ide"},
+        "replace",
+        "keep_new",
+        tags=["replace"],
+    ),
+    conf(
+        "CONF-0026",
+        "usr_kylin_003",
+        "system_maintenance",
+        {"workflow.backup": "full_local"},
+        {"workflow.backup": "incremental_local"},
+        "replace",
+        "keep_new",
+        tags=["replace"],
+    ),
+    conf(
+        "CONF-0027",
+        "usr_kylin_004",
+        "software_dev",
+        {"output.structure": "complete_tree"},
+        {"output.structure": "complete_tree"},
+        "duplicate",
+        "keep_old",
+        tags=["duplicate"],
+    ),
+    conf(
+        "CONF-0028",
+        "usr_kylin_005",
+        "office_automation",
+        {"output.format": "markdown"},
+        {"tool.browser": "firefox"},
+        "unrelated",
+        "keep_old",
+        tags=["unrelated"],
+    ),
+    conf(
+        "CONF-0029",
+        "usr_kylin_001",
+        "galaxy_kylin_v11",
+        {"ui.theme": "dark"},
+        {"ui.theme": "light"},
+        "contradict",
+        "keep_new",
+        tags=["contradict"],
+        new_valid_from="2026-08-01T10:00:00+08:00",
+        new_confidence=0.92,
+        new_revision=2,
+    ),
 ]
 
 NEW_FORGET = [
