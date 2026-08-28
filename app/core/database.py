@@ -5,6 +5,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from threading import Lock
+from types import TracebackType
+from typing import Self
 
 from sqlalchemy import Engine, URL, create_engine, event, inspect, text
 from sqlalchemy.engine import make_url
@@ -20,6 +22,75 @@ _session_factory: sessionmaker[Session] | None = None
 _initialization_lock = Lock()
 
 
+def create_sqlite_engine(
+    database_url: str | Path | URL,
+    *,
+    echo: bool = False,
+) -> Engine:
+    """Create a configured SQLite engine without mutating ORM metadata."""
+    url = _coerce_sqlite_url(database_url)
+    if not url.drivername.startswith("sqlite"):
+        raise ValueError("only SQLite database URLs are supported")
+
+    _ensure_database_directory(url)
+    engine = create_engine(
+        url,
+        echo=echo,
+        connect_args={"check_same_thread": False},
+        pool_pre_ping=True,
+    )
+    _configure_sqlite(
+        engine,
+        persistent=url.database not in {None, ":memory:"},
+    )
+    return engine
+
+
+def create_session_factory(engine: Engine) -> sessionmaker[Session]:
+    """Create the shared SQLAlchemy 2.x session factory configuration."""
+    return sessionmaker(
+        bind=engine,
+        class_=Session,
+        autoflush=False,
+        expire_on_commit=False,
+    )
+
+
+class SqlAlchemyUnitOfWork:
+    """Commit a session on success and roll it back on every failure."""
+
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._session_factory = session_factory
+        self.session: Session | None = None
+
+    def __enter__(self) -> Self:
+        self.session = self._session_factory()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> bool:
+        if self.session is None:  # pragma: no cover - defensive invariant
+            raise RuntimeError("unit of work session was not initialized")
+
+        try:
+            if exc_type is None:
+                try:
+                    self.session.commit()
+                except Exception:
+                    self.session.rollback()
+                    raise
+            else:
+                self.session.rollback()
+        finally:
+            self.session.close()
+            self.session = None
+        return False
+
+
 def init_db(database_url: str | Path | URL | None = None) -> Engine:
     """Initialize a SQLite engine and create every registered ORM table."""
     global _engine, _session_factory
@@ -30,16 +101,7 @@ def init_db(database_url: str | Path | URL | None = None) -> Engine:
             if database_url is not None
             else _default_url()
         )
-        if not url.drivername.startswith("sqlite"):
-            raise ValueError("only SQLite database URLs are supported")
-
-        _ensure_database_directory(url)
-        engine = create_engine(
-            url,
-            connect_args={"check_same_thread": False},
-            pool_pre_ping=True,
-        )
-        _enable_sqlite_foreign_keys(engine)
+        engine = create_sqlite_engine(url)
 
         try:
             Base.metadata.create_all(engine)
@@ -50,11 +112,7 @@ def init_db(database_url: str | Path | URL | None = None) -> Engine:
 
         previous_engine = _engine
         _engine = engine
-        _session_factory = sessionmaker(
-            bind=engine,
-            autoflush=False,
-            expire_on_commit=False,
-        )
+        _session_factory = create_session_factory(engine)
         if previous_engine is not None:
             previous_engine.dispose()
         return engine
@@ -100,14 +158,18 @@ def _ensure_database_directory(url: URL) -> None:
     Path(database).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
 
 
-def _enable_sqlite_foreign_keys(engine: Engine) -> None:
+def _configure_sqlite(engine: Engine, *, persistent: bool) -> None:
     @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(
+    def configure_connection(
         dbapi_connection: sqlite3.Connection,
         _connection_record: object,
     ) -> None:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        if persistent:
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.close()
 
 

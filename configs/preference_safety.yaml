@@ -1,0 +1,4 @@
+services:
+  preference_implementation: adapters.preference_safety.preference:build_preference_service
+  safety_implementation: adapters.preference_safety.safety:build_safety_service
+  forget_implementation: adapters.preference_safety.forget:build_forget_service

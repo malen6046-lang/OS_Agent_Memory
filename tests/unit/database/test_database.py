@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.database import get_session, init_db
 from app.models import (
     AuditLogModel,
+    Base,
     EvaluationRunModel,
     IdempotencyRecordModel,
     MemoryRecordModel,
@@ -48,6 +49,18 @@ EXPECTED_COLUMNS = {
     },
 }
 
+EXPECTED_DOMAIN_TABLES = set(EXPECTED_COLUMNS) | {
+    "preference_current",
+    "preference_versions",
+    "knowledge",
+    "knowledge_versions",
+    "knowledge_relations",
+    "conflict",
+    "forget_audits",
+    "memory_transitions",
+    "vector_mappings",
+}
+
 
 @pytest.fixture
 def sqlite_url(tmp_path: Path) -> str:
@@ -58,7 +71,7 @@ def test_init_db_creates_required_tables_and_columns(sqlite_url):
     engine = init_db(sqlite_url)
     inspector = inspect(engine)
 
-    assert set(inspector.get_table_names()) == set(EXPECTED_COLUMNS)
+    assert set(inspector.get_table_names()) == EXPECTED_DOMAIN_TABLES
     for table_name, expected_columns in EXPECTED_COLUMNS.items():
         actual_columns = {
             column["name"] for column in inspector.get_columns(table_name)
@@ -75,7 +88,7 @@ def test_init_db_accepts_file_path_and_is_idempotent(tmp_path):
     second_engine = init_db(database_path)
 
     assert database_path.is_file()
-    assert set(inspect(second_engine).get_table_names()) == set(EXPECTED_COLUMNS)
+    assert set(inspect(second_engine).get_table_names()) == EXPECTED_DOMAIN_TABLES
     first_engine.dispose()
     second_engine.dispose()
 
@@ -212,4 +225,63 @@ def test_init_db_migrates_legacy_memory_table_without_data_loss(tmp_path):
         assert row is not None
         assert row.content_text == "legacy"
 
+    engine.dispose()
+
+
+def test_0003_sql_matches_registered_domain_models(tmp_path):
+    database_path = tmp_path / "migrated.db"
+    project_root = Path(__file__).resolve().parents[3]
+    migration_paths = [
+        project_root / "migrations" / "versions" / "0001_initial.sql",
+        project_root
+        / "migrations"
+        / "versions"
+        / "0002_repository_payloads.sql",
+        project_root
+        / "migrations"
+        / "versions"
+        / "0003_backend_domain_tables.sql",
+    ]
+
+    with sqlite3.connect(database_path) as connection:
+        for migration_path in migration_paths:
+            connection.executescript(
+                migration_path.read_text(encoding="utf-8")
+            )
+
+        actual_tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+        assert actual_tables == EXPECTED_DOMAIN_TABLES
+
+        for table_name in EXPECTED_DOMAIN_TABLES - set(EXPECTED_COLUMNS):
+            actual_columns = {
+                row[1]
+                for row in connection.execute(
+                    f'PRAGMA table_info("{table_name}")'
+                )
+            }
+            expected_columns = set(
+                Base.metadata.tables[table_name].columns.keys()
+            )
+            assert actual_columns == expected_columns
+
+            actual_indexes = {
+                row[1]
+                for row in connection.execute(
+                    f'PRAGMA index_list("{table_name}")'
+                )
+            }
+            expected_indexes = {
+                index.name
+                for index in Base.metadata.tables[table_name].indexes
+            }
+            assert expected_indexes <= actual_indexes
+
+    engine = init_db(database_path)
+    assert set(inspect(engine).get_table_names()) == EXPECTED_DOMAIN_TABLES
     engine.dispose()

@@ -106,6 +106,9 @@ class MemoryOrchestrator:
         self._fallback_retriever = fallback_retriever
         self._timeouts = timeout_seconds
         self._logger = logger or logging.getLogger(__name__)
+        # MVP single-flight guard. Durable cross-worker reservation belongs
+        # in the idempotency repository used by the production deployment.
+        self._forget_execution_lock = asyncio.Lock()
 
     async def ingest(self, envelope: Envelope | Mapping[str, Any]) -> dict[str, Any]:
         """Validate, deduplicate, check safety, persist, sync, and audit."""
@@ -385,11 +388,46 @@ class MemoryOrchestrator:
         started = monotonic()
         request_id = _value(request, "request_id", "")
         self._log("forget.execute", "start", request_id)
+        lock_acquired = False
         try:
             validated_request = _request_contract(
                 ForgetExecuteRequest, request
             )
             user_id = validated_request.user_id
+            fingerprint = _forget_fingerprint(validated_request)
+            idempotency_key = _forget_idempotency_key(
+                user_id,
+                validated_request.request_id,
+            )
+
+            await self._forget_execution_lock.acquire()
+            lock_acquired = True
+
+            existing = None
+            if self._idempotency_repository is not None:
+                existing = await self._dependency_call(
+                    "idempotency_repository",
+                    self._idempotency_repository,
+                    "get",
+                    user_id,
+                    "forget.execute",
+                    idempotency_key,
+                )
+                if existing is not None:
+                    existing = _contract_result(
+                        IdempotencyEntry,
+                        existing,
+                        "idempotency_repository",
+                        "get",
+                    )
+                replay = self._replay_response(existing, fingerprint)
+                if replay is not None:
+                    replay["request_id"] = request_id
+                    replay.setdefault("meta", {})[
+                        "idempotent_replay"
+                    ] = True
+                    self._log("forget.execute", "replayed", request_id)
+                    return replay
 
             execution_plan = await self._dependency_call(
                 "forget_service",
@@ -449,14 +487,31 @@ class MemoryOrchestrator:
                 "audit_result": audit_result,
             }
             self._log("forget.execute", "completed", request_id)
-            return self._success(
+            response = self._success(
                 request_id, data, started, provider="forget_service"
             )
+            if self._idempotency_repository is not None:
+                await self._dependency_call(
+                    "idempotency_repository",
+                    self._idempotency_repository,
+                    "save",
+                    IdempotencyEntry(
+                        user_id=user_id,
+                        operation="forget.execute",
+                        idempotency_key=idempotency_key,
+                        fingerprint=fingerprint,
+                        response=response,
+                    ),
+                )
+            return response
         except OrchestratorError as exc:
             self._log(
                 "forget.execute", "failed", request_id, error_code=exc.code
             )
             return self._failure(request_id, exc, started)
+        finally:
+            if lock_acquired:
+                self._forget_execution_lock.release()
 
     async def run_evaluation(self, request: Any) -> dict[str, Any]:
         """Delegate evaluation execution and return the standard envelope."""
@@ -601,6 +656,13 @@ class MemoryOrchestrator:
         except OrchestratorError:
             raise
         except Exception as exc:
+            mapped_error = _contract_dependency_error(
+                exc,
+                dependency_name,
+                method_name,
+            )
+            if mapped_error is not None:
+                raise mapped_error from exc
             raise DependencyUnavailableError(
                 dependency_name, method_name
             ) from exc
@@ -763,6 +825,55 @@ def _envelope_fingerprint(envelope: Envelope) -> str:
         separators=(",", ":"),
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _forget_fingerprint(request: ForgetExecuteRequest) -> str:
+    fingerprint_data = request.model_dump(mode="json")
+    fingerprint_data.pop("request_id", None)
+    canonical = json.dumps(
+        fingerprint_data,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _forget_idempotency_key(user_id: str, request_id: str) -> str:
+    digest = hashlib.blake2b(
+        f"{user_id}\0{request_id}".encode("utf-8"),
+        digest_size=16,
+        person=b"forget-execute",
+    ).hexdigest()
+    return f"__forget_execute__:{digest}"
+
+
+def _contract_dependency_error(
+    error: Exception,
+    dependency: str,
+    operation: str,
+) -> OrchestratorError | None:
+    try:
+        code = ErrorCode(getattr(error, "error_code"))
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+    messages = {
+        ErrorCode.VALIDATION_ERROR: "Dependency rejected the request",
+        ErrorCode.CONFIRMATION_EXPIRED: "Confirmation has expired",
+        ErrorCode.UNAUTHORIZED_SCOPE: (
+            "Request is outside the authorized scope"
+        ),
+    }
+    message = messages.get(code)
+    if message is None:
+        return None
+    return OrchestratorError(
+        code,
+        message,
+        retryable=False,
+        details={"dependency": dependency, "operation": operation},
+    )
 
 
 def _is_safety_blocked(result: Any) -> bool:

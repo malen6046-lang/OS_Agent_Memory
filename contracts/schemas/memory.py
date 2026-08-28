@@ -17,7 +17,7 @@ class MemoryRecord(BaseModel):
     user_id: NonEmptyString
     memory_kind: MemoryKind
     subtype: MemorySubtype
-    content_text: str
+    content_text: NonEmptyString
     content: dict[str, JsonValue]
     status: MemoryStatus
     confidence: float = Field(ge=0, le=1)
