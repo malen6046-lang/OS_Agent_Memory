@@ -171,7 +171,11 @@ def conf(
             "relation": relation,
             "strategy": strategy,
             "confidence": 0.89,
-            "reason_codes": ["same_entity", "same_attribute", "newer_effective_at"],
+            "reason_codes": (
+                ["different_entity"]
+                if relation == "unrelated"
+                else ["same_entity", "same_attribute", "newer_effective_at"]
+            ),
             "old_memory_id": old_id,
             "new_memory_id": new_id,
         },
@@ -195,16 +199,22 @@ def forg(
     *,
     scene: str = "office_automation",
 ) -> dict:
+    # Reuse semantic fixture texts so regenerated rows stay searchable.
+    from fix_forget_fixture_semantics import SEMANTICS
+
     token = f"tok_{cid.replace('-', '_').lower()}"
 
     def fix(mid: str) -> dict:
+        if mid not in SEMANTICS:
+            raise KeyError(f"forget fixture {mid} missing semantic content")
+        text, content = SEMANTICS[mid]
         return {
             "memory_id": mid,
             "user_id": uid,
             "memory_kind": "semantic",
             "subtype": "fact",
-            "content_text": f"夹具记忆 {mid}",
-            "content": {"label": mid},
+            "content_text": text,
+            "content": content,
             "status": "active",
             "confidence": 0.8,
             "importance": 0.5,
@@ -358,7 +368,7 @@ NEW_CONFLICT = [
         {"tool.office": "wps"},
         "replace",
         "keep_new",
-        tags=["replace"],
+        tags=["银河麒麟V11", "冲突", "replace", "v0.3_quality"],
     ),
     conf(
         "CONF-0025",
@@ -368,7 +378,7 @@ NEW_CONFLICT = [
         {"tool.editor": "kylin_ide"},
         "replace",
         "keep_new",
-        tags=["replace"],
+        tags=["银河麒麟V11", "冲突", "replace", "v0.3_quality"],
     ),
     conf(
         "CONF-0026",
@@ -378,7 +388,7 @@ NEW_CONFLICT = [
         {"workflow.backup": "incremental_local"},
         "replace",
         "keep_new",
-        tags=["replace"],
+        tags=["银河麒麟V11", "冲突", "replace", "v0.3_quality"],
     ),
     conf(
         "CONF-0027",
@@ -388,7 +398,7 @@ NEW_CONFLICT = [
         {"output.structure": "complete_tree"},
         "duplicate",
         "keep_old",
-        tags=["duplicate"],
+        tags=["银河麒麟V11", "冲突", "duplicate", "v0.3_quality"],
     ),
     conf(
         "CONF-0028",
@@ -398,7 +408,7 @@ NEW_CONFLICT = [
         {"tool.browser": "firefox"},
         "unrelated",
         "keep_old",
-        tags=["unrelated"],
+        tags=["银河麒麟V11", "冲突", "unrelated", "v0.3_quality"],
     ),
     conf(
         "CONF-0029",
@@ -408,7 +418,7 @@ NEW_CONFLICT = [
         {"ui.theme": "light"},
         "contradict",
         "keep_new",
-        tags=["contradict"],
+        tags=["银河麒麟V11", "冲突", "contradict", "v0.3_quality"],
         new_valid_from="2026-08-01T10:00:00+08:00",
         new_confidence=0.92,
         new_revision=2,
