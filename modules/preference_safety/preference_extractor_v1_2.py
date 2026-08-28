@@ -189,6 +189,45 @@ _SIGNAL_RULES = (
         ),
         ("全盘加密", "整盘加密", "系统盘加密", "磁盘加密"),
     ),
+    _SignalRule(
+        "output.structure",
+        "include_test_list",
+        "output_style",
+        (
+            r"(?=.*(?:单元测试|测试文件))(?=.*(?:文件列表|测试列表))"
+            r"(?=.*(?:附带|附上|包含|列出|提供|提交))",
+        ),
+        ("单元测试", "测试文件", "文件列表"),
+    ),
+    _SignalRule(
+        "output.format",
+        "tab_aligned_table",
+        "output_style",
+        (
+            r"(?=.*表格)(?=.*制表符)(?=.*(?:对齐|分隔|排版))",
+        ),
+        ("表格", "制表符", "对齐"),
+    ),
+    _SignalRule(
+        "cleanup.priority",
+        "temp_dirs_first",
+        "operation_habit",
+        (
+            r"(?=.*(?:磁盘清理|清理磁盘))"
+            r"(?=.*(?:优先|先))(?=.*(?:缓存目录|临时目录|缓存文件|临时文件))",
+        ),
+        ("缓存目录", "临时目录", "缓存文件", "临时文件"),
+    ),
+    _SignalRule(
+        "output.comment_language",
+        "zh",
+        "output_style",
+        (
+            r"(?=.*(?:代码)?注释)(?=.*(?:中文|汉语))"
+            r"(?=.*(?:默认|习惯|使用|采用|偏好))",
+        ),
+        ("代码注释", "注释", "中文", "汉语"),
+    ),
 )
 
 
@@ -315,6 +354,14 @@ def _extract_contextual(
         add(
             "output.structure",
             "conclusion_then_table",
+            "output_style",
+        )
+    elif re.search(r"(?:先|首先|优先).{0,10}结论", text) and not (
+        _is_negated_signal(text, ("先", "首先", "优先", "结论"))
+    ):
+        add(
+            "output.structure",
+            "conclusion_first",
             "output_style",
         )
     if "markdown" in lower and _contains_any(

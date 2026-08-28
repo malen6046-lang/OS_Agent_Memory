@@ -202,6 +202,26 @@ def test_preference_extraction_preserves_scene_scope() -> None:
             "依赖安装优先选 apt",
             {("tool.package_manager", "apt", "tool_choice")},
         ),
+        (
+            "连续一周会议纪要都要求先列三条结论",
+            {("output.structure", "conclusion_first", "output_style")},
+        ),
+        (
+            "三次提交都要求附带单元测试文件列表",
+            {("output.structure", "include_test_list", "output_style")},
+        ),
+        (
+            "用户多次要求表格用制表符对齐",
+            {("output.format", "tab_aligned_table", "output_style")},
+        ),
+        (
+            "清理磁盘时优先清理缓存目录",
+            {("cleanup.priority", "temp_dirs_first", "operation_habit")},
+        ),
+        (
+            "代码注释默认使用中文",
+            {("output.comment_language", "zh", "output_style")},
+        ),
     ),
 )
 def test_preference_extraction_generalizes_semantic_signals(
@@ -217,6 +237,8 @@ def test_preference_extraction_generalizes_semantic_signals(
     (
         "仅本轮按步骤详细讲解",
         "不要使用深色主题",
+        "提交时不要附带单元测试文件列表",
+        "代码注释不要使用中文",
     ),
 )
 def test_preference_extraction_rejects_temporary_or_negated_signals(

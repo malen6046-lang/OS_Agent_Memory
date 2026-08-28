@@ -46,7 +46,7 @@ async def test_profile_runs_real_preference_safety_and_two_stage_forget():
         assert ingested["success"] is True
         preferences = ingested["data"]["preference_result"]
         assert [(item["preference_key"], item["value"]) for item in preferences] == [
-            ("editor", "vim")
+            ("tool.editor", "vim")
         ]
         records = ingested["data"]["repository_result"]["records"]
         memory_id = records[0]["memory_id"]
