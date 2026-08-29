@@ -48,8 +48,7 @@ class FakeSidecarClient:
             "space_id": f"kylin-ai-runtime:test-model:1:{self.dimension}",
             "dimension": self.dimension,
             "vectors": [
-                [float(index + 1)] * self.dimension
-                for index, _ in enumerate(texts)
+                [float(index + 1)] * self.dimension for index, _ in enumerate(texts)
             ],
             "elapsed_ms": len(texts),
             "item_elapsed_ms": [1] * len(texts),
@@ -136,4 +135,3 @@ def test_deep_health_reports_transport_failure_as_unavailable():
 
     assert health.status == "unavailable"
     assert "offline" in health.details["error"]
-

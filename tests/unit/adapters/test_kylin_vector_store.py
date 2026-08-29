@@ -48,13 +48,15 @@ class FakeVectorClient:
 
     def vector_query(self, request):
         return {
-            "hits": [{
-                "vector_pk": 7,
-                "memory_id": "mem-7",
-                "user_id": request["user_id"],
-                "status": request["status"],
-                "score": 0.9,
-            }],
+            "hits": [
+                {
+                    "vector_pk": 7,
+                    "memory_id": "mem-7",
+                    "user_id": request["user_id"],
+                    "status": request["status"],
+                    "score": 0.9,
+                }
+            ],
             "elapsed_ms": 2,
         }
 
@@ -90,22 +92,26 @@ def test_start_returns_frozen_provider_health():
 
 def test_ensure_collection_uses_frozen_spec():
     adapter, client, _ = started_adapter()
-    adapter.ensure_collection(CollectionSpec(
-        name="test_collection", dimension=3, metric="cosine"
-    ))
+    adapter.ensure_collection(
+        CollectionSpec(name="test_collection", dimension=3, metric="cosine")
+    )
     assert client.collection["name"] == "test_collection"
 
 
 def test_upsert_returns_frozen_result_and_identity_metadata():
     adapter, client, _ = started_adapter()
-    result = adapter.upsert([VectorItem(
-        vector_pk=7,
-        memory_id="mem-7",
-        user_id="user-1",
-        status=MemoryStatus.ACTIVE,
-        vector=[0.1, 0.2, 0.3],
-        metadata={"kind": "preference"},
-    )])
+    result = adapter.upsert(
+        [
+            VectorItem(
+                vector_pk=7,
+                memory_id="mem-7",
+                user_id="user-1",
+                status=MemoryStatus.ACTIVE,
+                vector=[0.1, 0.2, 0.3],
+                metadata={"kind": "preference"},
+            )
+        ]
+    )
     assert isinstance(result, UpsertResult)
     assert result.upserted == 1
     assert client.items[0]["memory_id"] == "mem-7"
@@ -113,13 +119,15 @@ def test_upsert_returns_frozen_result_and_identity_metadata():
 
 def test_query_returns_frozen_vector_hits():
     adapter, _, _ = started_adapter()
-    hits = adapter.query(VectorQuery(
-        user_id="user-1",
-        status=MemoryStatus.ACTIVE,
-        vector=[0.1, 0.2, 0.3],
-        top_k=5,
-        timeout_ms=500,
-    ))
+    hits = adapter.query(
+        VectorQuery(
+            user_id="user-1",
+            status=MemoryStatus.ACTIVE,
+            vector=[0.1, 0.2, 0.3],
+            top_k=5,
+            timeout_ms=500,
+        )
+    )
     assert len(hits) == 1
     assert isinstance(hits[0], VectorHit)
     assert hits[0].user_id == "user-1"
@@ -142,13 +150,17 @@ def test_operations_require_start():
 def test_dimension_mismatch_is_rejected_before_sidecar_call():
     adapter, _, _ = started_adapter()
     with pytest.raises(ValueError, match="dimension mismatch"):
-        adapter.upsert([VectorItem(
-            vector_pk=7,
-            memory_id="mem-7",
-            user_id="user-1",
-            status=MemoryStatus.ACTIVE,
-            vector=[0.1],
-        )])
+        adapter.upsert(
+            [
+                VectorItem(
+                    vector_pk=7,
+                    memory_id="mem-7",
+                    user_id="user-1",
+                    status=MemoryStatus.ACTIVE,
+                    vector=[0.1],
+                )
+            ]
+        )
 
 
 def test_close_calls_vector_close_and_resets_lifecycle():
@@ -156,10 +168,14 @@ def test_close_calls_vector_close_and_resets_lifecycle():
     adapter.close()
     assert client.closed is True
     with pytest.raises(RuntimeError, match="not started"):
-        adapter.query(VectorQuery(
-            user_id="user-1", vector=[0.1, 0.2, 0.3],
-            top_k=1, timeout_ms=500,
-        ))
+        adapter.query(
+            VectorQuery(
+                user_id="user-1",
+                vector=[0.1, 0.2, 0.3],
+                top_k=1,
+                timeout_ms=500,
+            )
+        )
 
 
 def test_health_reports_ready_vector_sidecar():

@@ -88,9 +88,7 @@ class MemoryOrchestrator:
         audit_repository: AuditRepository | None = None,
         evaluation_service: EvaluationService | None = None,
         fallback_retriever: HybridRetriever | None = None,
-        timeout_seconds: float | Mapping[str, float] = (
-            DEFAULT_TIMEOUT_SECONDS
-        ),
+        timeout_seconds: float | Mapping[str, float] = (DEFAULT_TIMEOUT_SECONDS),
         logger: logging.Logger | None = None,
     ) -> None:
         self._preference_service = preference_service
@@ -120,6 +118,7 @@ class MemoryOrchestrator:
             validated = self._validate_envelope(envelope)
             request_id = validated.request_id
             fingerprint = _envelope_fingerprint(validated)
+            stage_started = monotonic()
 
             existing = await self._dependency_call(
                 "idempotency_repository",
@@ -158,8 +157,10 @@ class MemoryOrchestrator:
             )
             if _is_safety_blocked(safety_result):
                 raise SensitiveContentBlockedError()
+            self._log_timing("ingest", "safety", request_id, stage_started)
             self._log("ingest", "safety_checked", request_id)
 
+            stage_started = monotonic()
             candidates = await self._dependency_call(
                 "preference_service",
                 self._preference_service,
@@ -184,6 +185,8 @@ class MemoryOrchestrator:
                 "preference_service",
                 "upsert",
             )
+            self._log_timing("ingest", "preference", request_id, stage_started)
+            stage_started = monotonic()
             knowledge = await self._dependency_call(
                 "knowledge_service",
                 self._knowledge_service,
@@ -197,12 +200,14 @@ class MemoryOrchestrator:
                 "knowledge_service",
                 "ingest",
             )
+            self._log_timing("ingest", "knowledge", request_id, stage_started)
             service_result = IngestServiceResult(
                 preferences=preferences,
                 knowledge=knowledge,
             )
             self._log("ingest", "services_called", request_id)
 
+            stage_started = monotonic()
             committed = await self._dependency_call(
                 "repository",
                 self._repository,
@@ -215,9 +220,11 @@ class MemoryOrchestrator:
                 "repository",
                 "commit_ingest",
             )
+            self._log_timing("ingest", "repository", request_id, stage_started)
             self._log("ingest", "repository_committed", request_id)
 
             vector_items = committed.vector_items
+            stage_started = monotonic()
             vector_result = await self._dependency_call(
                 "vector_store",
                 self._vector_store,
@@ -230,8 +237,10 @@ class MemoryOrchestrator:
                 "vector_store",
                 "upsert",
             )
+            self._log_timing("ingest", "vector_store", request_id, stage_started)
             self._log("ingest", "vector_synced", request_id)
 
+            stage_started = monotonic()
             audit_result = await self._write_audit(
                 operation="memory.ingest",
                 request_id=request_id,
@@ -241,6 +250,7 @@ class MemoryOrchestrator:
                     "record_count": len(vector_items),
                 },
             )
+            self._log_timing("ingest", "audit", request_id, stage_started)
             data = {
                 "preference_result": preferences,
                 "knowledge_result": knowledge,
@@ -248,9 +258,7 @@ class MemoryOrchestrator:
                 "vector_result": vector_result,
                 "audit_result": audit_result,
             }
-            response = self._success(
-                request_id, data, started, provider="configured"
-            )
+            response = self._success(request_id, data, started, provider="configured")
 
             entry = IdempotencyEntry(
                 user_id=validated.user_id,
@@ -302,9 +310,7 @@ class MemoryOrchestrator:
             )
         except (DependencyUnavailableError, OrchestratorTimeoutError) as exc:
             if self._fallback_retriever is None:
-                self._log(
-                    "search", "failed", request_id, error_code=exc.code
-                )
+                self._log("search", "failed", request_id, error_code=exc.code)
                 return self._failure(request_id, exc, started)
             try:
                 result = await self._dependency_call(
@@ -354,9 +360,7 @@ class MemoryOrchestrator:
         request_id = _value(request, "request_id", "")
         self._log("forget.preview", "start", request_id)
         try:
-            validated_request = _request_contract(
-                ForgetPreviewRequest, request
-            )
+            validated_request = _request_contract(ForgetPreviewRequest, request)
             plan = await self._dependency_call(
                 "forget_service",
                 self._forget_service,
@@ -370,13 +374,9 @@ class MemoryOrchestrator:
                 "preview",
             )
             self._log("forget.preview", "completed", request_id)
-            return self._success(
-                request_id, plan, started, provider="forget_service"
-            )
+            return self._success(request_id, plan, started, provider="forget_service")
         except OrchestratorError as exc:
-            self._log(
-                "forget.preview", "failed", request_id, error_code=exc.code
-            )
+            self._log("forget.preview", "failed", request_id, error_code=exc.code)
             return self._failure(request_id, exc, started)
 
     async def execute_forget(self, request: Any) -> dict[str, Any]:
@@ -390,9 +390,7 @@ class MemoryOrchestrator:
         self._log("forget.execute", "start", request_id)
         lock_acquired = False
         try:
-            validated_request = _request_contract(
-                ForgetExecuteRequest, request
-            )
+            validated_request = _request_contract(ForgetExecuteRequest, request)
             user_id = validated_request.user_id
             fingerprint = _forget_fingerprint(validated_request)
             idempotency_key = _forget_idempotency_key(
@@ -423,9 +421,7 @@ class MemoryOrchestrator:
                 replay = self._replay_response(existing, fingerprint)
                 if replay is not None:
                     replay["request_id"] = request_id
-                    replay.setdefault("meta", {})[
-                        "idempotent_replay"
-                    ] = True
+                    replay.setdefault("meta", {})["idempotent_replay"] = True
                     self._log("forget.execute", "replayed", request_id)
                     return replay
 
@@ -505,9 +501,7 @@ class MemoryOrchestrator:
                 )
             return response
         except OrchestratorError as exc:
-            self._log(
-                "forget.execute", "failed", request_id, error_code=exc.code
-            )
+            self._log("forget.execute", "failed", request_id, error_code=exc.code)
             return self._failure(request_id, exc, started)
         finally:
             if lock_acquired:
@@ -519,9 +513,7 @@ class MemoryOrchestrator:
         request_id = _value(request, "request_id", "")
         self._log("evaluation", "start", request_id)
         try:
-            validated_request = _request_contract(
-                EvaluationRunRequest, request
-            )
+            validated_request = _request_contract(EvaluationRunRequest, request)
             result = await self._dependency_call(
                 "evaluation_service",
                 self._evaluation_service,
@@ -539,17 +531,20 @@ class MemoryOrchestrator:
                 request_id, result, started, provider="evaluation_service"
             )
         except OrchestratorError as exc:
-            self._log(
-                "evaluation", "failed", request_id, error_code=exc.code
-            )
+            self._log("evaluation", "failed", request_id, error_code=exc.code)
             return self._failure(request_id, exc, started)
 
     # Compatibility entry points retained for the existing API facade. New
     # V1.2.2 integrations should call ingest/search directly.
     async def ingest_event(self, event: Any) -> dict[str, Any]:
+        started = monotonic()
+        request_id = str(_value(event, "request_id", "legacy-ingest"))
+        stage_started = monotonic()
         preference_result = await self._legacy_call(
             "preference_service", self._preference_service, "extract", event
         )
+        self._log_timing("ingest_event", "preference", request_id, stage_started)
+        stage_started = monotonic()
         knowledge_result = await self._legacy_call(
             "knowledge_service",
             self._knowledge_service,
@@ -557,6 +552,8 @@ class MemoryOrchestrator:
             event,
             preference_result,
         )
+        self._log_timing("ingest_event", "knowledge", request_id, stage_started)
+        self._log_timing("ingest_event", "total", request_id, started)
         return {
             "preference_result": preference_result,
             "knowledge_result": knowledge_result,
@@ -575,17 +572,13 @@ class MemoryOrchestrator:
         *args: Any,
     ) -> Any:
         try:
-            return await self._invoke(
-                dependency_name, dependency, method_name, *args
-            )
+            return await self._invoke(dependency_name, dependency, method_name, *args)
         except OrchestratorTimeoutError as exc:
             raise TimeoutError(exc.message) from exc
         except DependencyUnavailableError as exc:
             raise RuntimeError(exc.message) from exc
 
-    def _validate_envelope(
-        self, envelope: Envelope | Mapping[str, Any]
-    ) -> Envelope:
+    def _validate_envelope(self, envelope: Envelope | Mapping[str, Any]) -> Envelope:
         if isinstance(envelope, Envelope):
             return envelope
         try:
@@ -663,9 +656,7 @@ class MemoryOrchestrator:
             )
             if mapped_error is not None:
                 raise mapped_error from exc
-            raise DependencyUnavailableError(
-                dependency_name, method_name
-            ) from exc
+            raise DependencyUnavailableError(dependency_name, method_name) from exc
 
     async def _invoke(
         self,
@@ -771,6 +762,18 @@ class MemoryOrchestrator:
             fields["error_code"] = error_code
         self._logger.info("memory_orchestrator", extra=fields)
 
+    def _log_timing(
+        self, flow: str, stage: str, request_id: str, started: float
+    ) -> None:
+        elapsed_ms = _elapsed_ms(started)
+        self._logger.info(
+            "memory_orchestrator_timing flow=%s stage=%s request_id=%s elapsed_ms=%s",
+            flow,
+            stage,
+            request_id,
+            elapsed_ms,
+        )
+
 
 def _value(source: Any, key: str, default: Any = None) -> Any:
     if isinstance(source, Mapping):
@@ -806,13 +809,8 @@ def _contract_list(
     operation: str,
 ) -> list[Any]:
     if not isinstance(values, list):
-        raise DependencyUnavailableError(
-            dependency, f"{operation}.invalid_response"
-        )
-    return [
-        _contract_result(model, value, dependency, operation)
-        for value in values
-    ]
+        raise DependencyUnavailableError(dependency, f"{operation}.invalid_response")
+    return [_contract_result(model, value, dependency, operation) for value in values]
 
 
 def _envelope_fingerprint(envelope: Envelope) -> str:
@@ -861,9 +859,7 @@ def _contract_dependency_error(
     messages = {
         ErrorCode.VALIDATION_ERROR: "Dependency rejected the request",
         ErrorCode.CONFIRMATION_EXPIRED: "Confirmation has expired",
-        ErrorCode.UNAUTHORIZED_SCOPE: (
-            "Request is outside the authorized scope"
-        ),
+        ErrorCode.UNAUTHORIZED_SCOPE: ("Request is outside the authorized scope"),
     }
     message = messages.get(code)
     if message is None:

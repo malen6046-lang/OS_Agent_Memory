@@ -5,7 +5,9 @@ from __future__ import annotations
 from uuid import uuid4
 
 from contracts.schemas.envelope import Envelope
-from contracts.schemas.evaluation import EvaluationRunRequest as ContractEvaluationRunRequest
+from contracts.schemas.evaluation import (
+    EvaluationRunRequest as ContractEvaluationRunRequest,
+)
 from contracts.schemas.forget import (
     ForgetExecuteRequest as ContractForgetExecuteRequest,
     ForgetPreviewRequest as ContractForgetPreviewRequest,
@@ -97,13 +99,10 @@ class OrchestratorApiService:
             "plan_id": data.get("plan_id", f"forget_{uuid4().hex}"),
             "user_id": request.user_id,
             "affected_memory_ids": [
-                candidate["memory_id"]
-                for candidate in data.get("candidates", [])
+                candidate["memory_id"] for candidate in data.get("candidates", [])
             ],
             "confirmation_token": data.get("confirmation_token"),
-            "requires_confirmation": data.get(
-                "requires_confirmation", True
-            ),
+            "requires_confirmation": data.get("requires_confirmation", True),
             "mock": self._container.mode == "mock",
         }
 

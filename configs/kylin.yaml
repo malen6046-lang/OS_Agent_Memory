@@ -1,6 +1,6 @@
 embedding:
   provider: kylin
-  model_name: ensemble-embd_gte-base_uint8-text
+  model_name: default
   implementation: adapters.embedding.kylin_provider:KylinEmbeddingProvider
 
 vector_store:

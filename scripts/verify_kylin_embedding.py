@@ -8,9 +8,7 @@ from adapters.embedding.kylin_provider import KylinEmbeddingProvider
 
 
 def main() -> int:
-    provider = KylinEmbeddingProvider(
-        model_name="ensemble-embd_gte-base_uint8-text"
-    )
+    provider = KylinEmbeddingProvider(model_name="ensemble-embd_gte-base_uint8-text")
     try:
         health = provider.start()
         model = provider.model_info()
@@ -38,4 +36,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

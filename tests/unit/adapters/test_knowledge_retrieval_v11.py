@@ -8,7 +8,10 @@ from app.dependencies.mock_services import (
     MockVectorStoreAdapter,
 )
 from adapters.knowledge_retrieval.knowledge import KnowledgeServiceAdapter
-from adapters.knowledge_retrieval.retrieval import HybridRetrieverAdapter
+from adapters.knowledge_retrieval.retrieval import (
+    HybridRetrieverAdapter,
+    _technical_tokens,
+)
 from contracts.schemas.common import MemoryStatus
 from contracts.schemas.envelope import Envelope
 from contracts.schemas.persistence import IngestServiceResult
@@ -167,6 +170,46 @@ def test_search_applies_contract_filters_after_repository_hydration() -> None:
 
     assert response.items == []
     assert response.total == 0
+
+
+def test_search_promotes_technical_term_matches() -> None:
+    _, vector_store, repository, knowledge, retriever = _runtime_services()
+    technical = knowledge.ingest(
+        [
+            _event(
+                source_event_id="event-technical",
+                text="查看CPU架构。执行 uname -m，x86_64 表示64位AMD64架构。",
+            )
+        ],
+        [],
+    )
+    filler = knowledge.ingest(
+        [
+            _event(
+                source_event_id="event-filler",
+                text="桌面主题可以根据喜好切换。",
+            )
+        ],
+        [],
+    )
+    _commit(repository, vector_store, technical)
+    _commit(repository, vector_store, filler)
+
+    response = retriever.search(
+        SearchRequest(
+            request_id="search-technical-rerank",
+            user_id="user-1",
+            query="如何确认机器是x86_64？",
+            top_k=1,
+        )
+    )
+
+    assert response.items
+    assert response.items[0].content_text.startswith("查看CPU架构")
+
+
+def test_technical_token_extraction_keeps_architecture_identifier() -> None:
+    assert "x86_64" in _technical_tokens("如何确认机器是x86_64？")
 
 
 def test_conflict_classifier_and_legacy_apply_are_contract_mapped() -> None:

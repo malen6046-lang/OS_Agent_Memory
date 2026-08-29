@@ -32,39 +32,51 @@ def main() -> int:
     try:
         embedding_health = embedding.start()
         embedding_started = True
-        vector_health = vector_store.start(VectorStoreConfig(
-            provider="kylin",
-            collection_name=COLLECTION,
-            expected_dimension=DIMENSION,
-            metric="cosine",
-        ))
+        vector_health = vector_store.start(
+            VectorStoreConfig(
+                provider="kylin",
+                collection_name=COLLECTION,
+                expected_dimension=DIMENSION,
+                metric="cosine",
+            )
+        )
         vector_started = True
-        vector_store.ensure_collection(CollectionSpec(
-            name=COLLECTION, dimension=DIMENSION, metric="cosine"
-        ))
+        vector_store.ensure_collection(
+            CollectionSpec(name=COLLECTION, dimension=DIMENSION, metric="cosine")
+        )
 
         batch = embedding.encode(["用户喜欢深色主题。"])
         vector = batch.vectors[0]
-        upsert = vector_store.upsert([
-            VectorItem(
-                vector_pk=pks[0], memory_id=f"verify-{pks[0]}",
-                user_id="verify-user-a", status=MemoryStatus.ACTIVE,
-                vector=vector, metadata={"test_run": True},
-            ),
-            VectorItem(
-                vector_pk=pks[1], memory_id=f"verify-{pks[1]}",
-                user_id="verify-user-b", status=MemoryStatus.ACTIVE,
-                vector=vector, metadata={"test_run": True},
-            ),
-        ])
-        hits = vector_store.query(VectorQuery(
-            user_id="verify-user-a",
-            status=MemoryStatus.ACTIVE,
-            vector=vector,
-            top_k=5,
-            timeout_ms=500,
-            filters={"test_run": True},
-        ))
+        upsert = vector_store.upsert(
+            [
+                VectorItem(
+                    vector_pk=pks[0],
+                    memory_id=f"verify-{pks[0]}",
+                    user_id="verify-user-a",
+                    status=MemoryStatus.ACTIVE,
+                    vector=vector,
+                    metadata={"test_run": True},
+                ),
+                VectorItem(
+                    vector_pk=pks[1],
+                    memory_id=f"verify-{pks[1]}",
+                    user_id="verify-user-b",
+                    status=MemoryStatus.ACTIVE,
+                    vector=vector,
+                    metadata={"test_run": True},
+                ),
+            ]
+        )
+        hits = vector_store.query(
+            VectorQuery(
+                user_id="verify-user-a",
+                status=MemoryStatus.ACTIVE,
+                vector=vector,
+                top_k=5,
+                timeout_ms=500,
+                filters={"test_run": True},
+            )
+        )
         if not hits or any(hit.user_id != "verify-user-a" for hit in hits):
             raise RuntimeError("user_id filter verification failed")
         if not any(hit.vector_pk == pks[0] for hit in hits):
@@ -97,4 +109,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

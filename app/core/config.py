@@ -74,9 +74,7 @@ class ServicesConfig(BaseModel):
 
     @field_validator("dependency_timeouts")
     @classmethod
-    def _validate_dependency_timeouts(
-        cls, value: dict[str, float]
-    ) -> dict[str, float]:
+    def _validate_dependency_timeouts(cls, value: dict[str, float]) -> dict[str, float]:
         if any(not key.strip() for key in value):
             raise ValueError("dependency timeout names cannot be empty")
         if any(timeout <= 0 for timeout in value.values()):
@@ -182,9 +180,7 @@ class ConfigManager:
         return (project_dir / DEFAULT_CONFIG_DIRECTORY).resolve()
 
     def _selected_environment(self) -> str:
-        profile = self._environment or os.getenv(
-            f"{self._env_prefix}ENV", "default"
-        )
+        profile = self._environment or os.getenv(f"{self._env_prefix}ENV", "default")
         profile = profile.strip()
         if not profile or not PROFILE_NAME_PATTERN.fullmatch(profile):
             raise ValueError(f"invalid configuration environment: {profile!r}")
@@ -252,9 +248,7 @@ class ConfigManager:
         return paths
 
     @staticmethod
-    def _set_nested(
-        data: dict[str, Any], path: tuple[str, ...], value: Any
-    ) -> None:
+    def _set_nested(data: dict[str, Any], path: tuple[str, ...], value: Any) -> None:
         current = data
         for part in path[:-1]:
             nested = current.get(part)

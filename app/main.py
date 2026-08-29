@@ -33,6 +33,7 @@ async def lifespan(application: FastAPI):
     api_service = OrchestratorApiService(container, orchestrator)
 
     await container.start()
+    await container.warmup()
     application.state.config = config
     application.state.service_container = container
     application.state.memory_orchestrator = orchestrator
@@ -118,9 +119,7 @@ async def orchestrator_exception_handler(
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(
-    request: Request, exc: HTTPException
-) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     if isinstance(exc.detail, str):
         message = exc.detail
         details = None

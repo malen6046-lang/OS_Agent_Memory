@@ -116,9 +116,7 @@ class KylinEmbeddingProvider:
         data = self._client.encode(texts)
         vectors = data.get("vectors")
         if not isinstance(vectors, list) or len(vectors) != len(texts):
-            raise RuntimeError(
-                "Kylin Sidecar returned a different number of vectors"
-            )
+            raise RuntimeError("Kylin Sidecar returned a different number of vectors")
         model_name = data.get("model")
         dimension = data.get("dimension")
         if model_name != self._model.model_name:
@@ -143,4 +141,3 @@ class KylinEmbeddingProvider:
             dimension=data.get("dimension"),
             model_fingerprint=data.get("space_id"),
         )
-

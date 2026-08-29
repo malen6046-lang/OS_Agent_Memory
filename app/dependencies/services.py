@@ -107,6 +107,21 @@ class ServiceContainer:
                 "provider shutdown failed: " + "; ".join(errors)
             )
 
+    async def warmup(self) -> None:
+        """Load the embedding model before the first user request.
+
+        Providers are already started at this point.  A single minimal encode
+        keeps cold-start latency out of the first real ingest/search request;
+        it does not write anything to the vector store.
+        """
+        if self.embedding_provider is None:
+            raise ServiceStartupError("EmbeddingProvider is required for warmup")
+        await _invoke(self.embedding_provider.health)
+        await _invoke(
+            self.embedding_provider.encode,
+            ["os-agent-memory-startup-warmup"],
+        )
+
     async def _rollback_started(self) -> None:
         while self._started_providers:
             provider = self._started_providers.pop()

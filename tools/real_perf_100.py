@@ -86,12 +86,18 @@ def main() -> None:
                 elapsed = (time.perf_counter() - started) * 1000
                 body = response.json()
                 if response.status_code >= 400 or not body.get("success"):
-                    failures.append({"operation": "write", "index": index, "body": body})
+                    failures.append(
+                        {"operation": "write", "index": index, "body": body}
+                    )
                 else:
                     write_client.append(elapsed)
-                    write_backend.append(float(body.get("meta", {}).get("elapsed_ms", 0)))
+                    write_backend.append(
+                        float(body.get("meta", {}).get("elapsed_ms", 0))
+                    )
             except Exception as exc:  # noqa: BLE001
-                failures.append({"operation": "write", "index": index, "error": repr(exc)})
+                failures.append(
+                    {"operation": "write", "index": index, "error": repr(exc)}
+                )
             if (index + 1) % 10 == 0:
                 print(f"  已写入 {index + 1}/{WRITES}")
 
@@ -109,12 +115,18 @@ def main() -> None:
                 elapsed = (time.perf_counter() - started) * 1000
                 body = response.json()
                 if response.status_code >= 400 or not body.get("success"):
-                    failures.append({"operation": "search", "index": index, "body": body})
+                    failures.append(
+                        {"operation": "search", "index": index, "body": body}
+                    )
                 else:
                     search_client.append(elapsed)
-                    search_backend.append(float(body.get("meta", {}).get("elapsed_ms", 0)))
+                    search_backend.append(
+                        float(body.get("meta", {}).get("elapsed_ms", 0))
+                    )
             except Exception as exc:  # noqa: BLE001
-                failures.append({"operation": "search", "index": index, "error": repr(exc)})
+                failures.append(
+                    {"operation": "search", "index": index, "error": repr(exc)}
+                )
             if (index + 1) % 5 == 0:
                 print(f"  已搜索 {index + 1}/{SEARCHES}")
 
@@ -133,7 +145,9 @@ def main() -> None:
         "failure_count": len(failures),
         "failures": failures,
     }
-    OUTPUT.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    OUTPUT.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     print(f"报告文件：{OUTPUT}")
 

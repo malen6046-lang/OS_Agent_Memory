@@ -70,10 +70,7 @@ class KylinVectorStoreAdapter:
             )
         try:
             sidecar = self._client.health()
-            status = (
-                "ok" if sidecar.get("vector_status") == "ready"
-                else "unavailable"
-            )
+            status = "ok" if sidecar.get("vector_status") == "ready" else "unavailable"
             return ProviderHealth(
                 provider="kylin",
                 status=status,
@@ -106,14 +103,12 @@ class KylinVectorStoreAdapter:
         if not items:
             return UpsertResult(upserted=0)
         assert self._config is not None
-        if any(
-            len(item.vector) != self._config.expected_dimension
-            for item in items
-        ):
-            raise ValueError("upsert vector dimension mismatch")
-        data = self._client.vector_upsert(
-            [item.model_dump(mode="json") for item in items]
-        )
+        payload_items: list[dict[str, object]] = []
+        for item in items:
+            if len(item.vector) != self._config.expected_dimension:
+                raise ValueError("upsert vector dimension mismatch")
+            payload_items.append(item.model_dump(mode="json"))
+        data = self._client.vector_upsert(payload_items)
         return UpsertResult.model_validate(data)
 
     def query(self, request: VectorQuery) -> list[VectorHit]:

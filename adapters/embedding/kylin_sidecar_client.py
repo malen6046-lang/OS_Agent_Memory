@@ -43,9 +43,7 @@ class KylinSidecarClient:
         uid = os.getuid() if hasattr(os, "getuid") else 0
         configured_path = os.getenv("OS_AGENT_KYLIN_SIDECAR_SOCKET")
         self.socket_path = Path(
-            socket_path
-            or configured_path
-            or f"/tmp/os-agent-kylin-sidecar-{uid}.sock"
+            socket_path or configured_path or f"/tmp/os-agent-kylin-sidecar-{uid}.sock"
         )
         configured_timeout = os.getenv("OS_AGENT_KYLIN_SIDECAR_TIMEOUT_SECONDS")
         self.timeout_seconds = float(
@@ -89,7 +87,14 @@ class KylinSidecarClient:
     def _call(self, action: str, **fields: Any) -> dict[str, Any]:
         request_id = f"req-py-{uuid.uuid4().hex}"
         payload = {"request_id": request_id, "action": action, **fields}
-        wire = (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
+        wire = (
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            + "\n"
+        ).encode("utf-8")
 
         response = bytearray()
         try:
