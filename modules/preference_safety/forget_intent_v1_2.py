@@ -27,18 +27,8 @@ def parse_forget_intent(instruction: str) -> ForgetIntent:
     if not normalized:
         return ForgetIntent(scope="topic", target="")
 
-    parts = re.split(
-        r"[，,；;]\s*(?:但是|但|同时|并且)?\s*"
-        r"(?:保留|留下|不要删除|别删|勿删)",
-        normalized,
-        maxsplit=1,
-    )
-    delete_clause = parts[0].strip()
-    exclusions = (
-        tuple(filter(None, (_clean_target(parts[1]),)))
-        if len(parts) > 1
-        else ()
-    )
+    delete_clause, keep_clause = _split_keep_clause(normalized)
+    exclusions = _exclusion_targets(keep_clause)
 
     all_scope = bool(re.search(r"(?:全部|所有|一切)", delete_clause))
     target = _clean_target(delete_clause)
@@ -74,15 +64,17 @@ def select_relevant_candidates(
         score = _finite_score(row.get("score"))
         ranked.append((lexical, score, index, row))
 
+    best_lexical = max(item[0] for item in ranked)
+    lexical_floor = max(0.34, best_lexical - 0.12)
     accepted: list[dict[str, Any]] = []
     for lexical, _score, _index, row in ranked:
-        if lexical >= 0.34:
+        if lexical >= lexical_floor:
             accepted.append(row)
 
     if not accepted and not degraded:
         top_lexical, top_score, _, top_row = ranked[0]
         second_score = ranked[1][1] if len(ranked) > 1 else 0.0
-        if top_lexical > 0.0 or (
+        if top_lexical >= 0.2 or (
             top_score >= 0.78
             and (len(ranked) == 1 or top_score - second_score >= 0.035)
         ):
@@ -107,6 +99,39 @@ def matches_scope_qualifier(qualifier: str, candidate: Mapping[str, Any]) -> boo
     if isinstance(attributes, Mapping):
         attribute_text = " ".join(str(value) for value in attributes.values())
     return _lexical_coverage(target, f"{content} {attribute_text}") >= 0.34
+
+
+def _split_keep_clause(instruction: str) -> tuple[str, str]:
+    """Support both 'keep X' and natural Chinese 'X stays' clauses."""
+    prefix = re.match(
+        r"^(?P<delete>.+?)[，,；;]\s*(?:但是|但|同时|并且)?\s*"
+        r"(?:保留|留下|不要删除|不删除|别删|勿删|不要动|别动)\s*"
+        r"(?P<keep>.+?)\s*[。！!]?$",
+        instruction,
+    )
+    if prefix:
+        return prefix.group("delete").strip(), prefix.group("keep").strip()
+
+    suffix = re.match(
+        r"^(?P<delete>.+?)[，,；;]\s*(?:但是|但|同时|并且)?\s*"
+        r"(?P<keep>.+?)\s*"
+        r"(?:保留|留下|不要删除|不删除|别删|勿删|不要动|别动)"
+        r"(?:即可|就行)?\s*[。！!]?$",
+        instruction,
+    )
+    if suffix:
+        return suffix.group("delete").strip(), suffix.group("keep").strip()
+    return instruction, ""
+
+
+def _exclusion_targets(keep_clause: str) -> tuple[str, ...]:
+    if not keep_clause:
+        return ()
+    targets = (
+        _clean_target(part)
+        for part in re.split(r"\s*(?:、|和|及|与)\s*", keep_clause)
+    )
+    return tuple(dict.fromkeys(target for target in targets if target))
 
 
 def _clean_target(text: str) -> str:
@@ -155,7 +180,7 @@ def _lexical_coverage(query: str, content: str) -> float:
     if not query_tokens:
         return 0.0
     content_folded = content.casefold()
-    matched = sum(token in content_folded for token in query_tokens)
+    matched = sum(_token_matches(token, content_folded) for token in query_tokens)
     return matched / len(query_tokens)
 
 
@@ -165,23 +190,31 @@ def _tokens(text: str) -> list[str]:
     cjk_runs = re.findall(r"[\u3400-\u9fff]+", folded)
     cjk: list[str] = []
     for run in cjk_runs:
-        if len(run) == 1:
-            cjk.append(run)
-        else:
-            cjk.extend(run[index : index + 2] for index in range(len(run) - 1))
-    generic = {
-        "关于",
-        "记忆",
-        "相关",
-        "内容",
-        "数据",
-        "信息",
-        "设置",
-        "配置",
-        "记录",
-        "细节",
+        parts = re.split(
+            r"(?:关于|相关|记忆|内容|数据|信息|设置|配置|记录|细节|"
+            r"偏好|习惯|流程|策略|和|及|与|的)",
+            run,
+        )
+        for part in parts:
+            if len(part) == 1:
+                cjk.append(part)
+            elif part:
+                cjk.extend(
+                    part[index : index + 2]
+                    for index in range(len(part) - 1)
+                )
+    return list(dict.fromkeys([*latin, *cjk]))
+
+
+def _token_matches(token: str, content_folded: str) -> bool:
+    equivalents = {
+        "token": ("token", "令牌"),
+        "令牌": ("令牌", "token"),
     }
-    return [token for token in [*latin, *cjk] if token not in generic]
+    return any(
+        alternative in content_folded
+        for alternative in equivalents.get(token, (token,))
+    )
 
 
 def _finite_score(value: Any) -> float:

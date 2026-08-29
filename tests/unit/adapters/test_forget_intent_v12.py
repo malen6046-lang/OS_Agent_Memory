@@ -28,6 +28,42 @@ def test_parser_separates_target_and_explicit_keep_clause() -> None:
     assert intent.resolver_query == "星河专项会议细节"
 
 
+@pytest.mark.parametrize(
+    ("instruction", "target", "exclusions"),
+    (
+        (
+            "删除输入法偏好，办公套件偏好保留",
+            "输入法偏好",
+            ("办公套件偏好",),
+        ),
+        (
+            "删除代理和token相关记忆，编辑器偏好留下",
+            "代理和token",
+            ("编辑器偏好",),
+        ),
+        (
+            "忘记会议专项细节，纪要结构习惯别动",
+            "会议专项细节",
+            ("纪要结构习惯",),
+        ),
+        (
+            "忘记临时清理策略，备份与防火墙记忆保留",
+            "临时清理策略",
+            ("备份", "防火墙"),
+        ),
+    ),
+)
+def test_parser_supports_suffix_keep_clauses(
+    instruction: str,
+    target: str,
+    exclusions: tuple[str, ...],
+) -> None:
+    intent = parse_forget_intent(instruction)
+
+    assert intent.target == target
+    assert intent.exclusions == exclusions
+
+
 def test_parser_distinguishes_all_from_bounded_all() -> None:
     everything = parse_forget_intent("忘记全部记忆")
     temporary = parse_forget_intent("清除所有临时记忆")
@@ -76,6 +112,54 @@ def test_reranker_abstains_when_dense_scores_are_ambiguous() -> None:
     assert selected == []
 
 
+def test_reranker_keeps_only_the_best_matching_qualified_candidate() -> None:
+    selected = select_relevant_candidates(
+        "个人场景代理配置",
+        [
+            {
+                "memory_id": "mem_personal",
+                "content_text": "用户在个人场景使用本地代理做抓包调试",
+                "score": 0.86,
+            },
+            {
+                "memory_id": "mem_delivery",
+                "content_text": "交付场景禁止改用个人代理",
+                "score": 0.85,
+            },
+        ],
+    )
+
+    assert [item["memory_id"] for item in selected] == ["mem_personal"]
+
+
+def test_reranker_supports_token_and_chinese_token_synonyms() -> None:
+    selected = select_relevant_candidates(
+        "代理和token",
+        [
+            {
+                "memory_id": "mem_proxy",
+                "content_text": "办公网络使用 HTTP 代理",
+                "score": 0.86,
+            },
+            {
+                "memory_id": "mem_token",
+                "content_text": "保存过接口访问令牌备忘",
+                "score": 0.85,
+            },
+            {
+                "memory_id": "mem_editor",
+                "content_text": "默认使用 Kylin-IDE",
+                "score": 0.84,
+            },
+        ],
+    )
+
+    assert [item["memory_id"] for item in selected] == [
+        "mem_proxy",
+        "mem_token",
+    ]
+
+
 def test_keep_clause_filters_trusted_custom_resolver_candidates() -> None:
     calls: list[tuple[str, str]] = []
 
@@ -105,6 +189,36 @@ def test_keep_clause_filters_trusted_custom_resolver_candidates() -> None:
 
     assert calls == [("usr_1", "星河专项会议细节")]
     assert [item.memory_id for item in plan.candidates] == ["mem_project"]
+    assert plan.risk_level == "medium"
+
+
+def test_suffix_keep_clause_filters_trusted_custom_resolver_candidates() -> None:
+    def resolver(user_id: str, _query: str):
+        return [
+            {
+                "memory_id": "mem_input_method",
+                "user_id": user_id,
+                "content_text": "用户输入法偏好搜狗拼音",
+            },
+            {
+                "memory_id": "mem_office",
+                "user_id": user_id,
+                "content_text": "用户办公套件偏好 WPS",
+            },
+        ]
+
+    service = ForgetServiceAdapter(candidate_resolver=resolver)
+    plan = service.preview(
+        ForgetPreviewRequest(
+            request_id="req_suffix_keep_clause",
+            user_id="usr_1",
+            instruction="删除输入法偏好，办公套件偏好保留",
+        )
+    )
+
+    assert [item.memory_id for item in plan.candidates] == [
+        "mem_input_method"
+    ]
     assert plan.risk_level == "medium"
 
 
