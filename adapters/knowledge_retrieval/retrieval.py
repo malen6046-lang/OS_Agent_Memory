@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Mapping
 
 from contracts.schemas.common import MemoryStatus
@@ -42,7 +43,7 @@ class HybridRetrieverAdapter:
             "request_id": request.request_id,
             "user_id": request.user_id,
             "query": request.query,
-            "top_k": request.top_k,
+            "top_k": candidate_k,
             "candidate_k": candidate_k,
             "filters": dict(request.filters),
         }
@@ -80,23 +81,28 @@ class HybridRetrieverAdapter:
             record.memory_id: MemoryRecord.model_validate(record)
             for record in records
         }
-        items: list[SearchHit] = []
+        ranked_records: list[tuple[MemoryRecord, float]] = []
         for memory_id in memory_ids:
             record = records_by_id.get(memory_id)
             if record is None or not _matches_filters(record, request.filters):
                 continue
-            items.append(
-                SearchHit(
-                    memory_id=record.memory_id,
-                    user_id=record.user_id,
-                    status=record.status,
-                    content_text=record.content_text,
-                    score=scores[memory_id],
-                    attributes=dict(record.attributes),
-                )
+            ranked_records.append((record, scores[memory_id]))
+
+        ranked_records.sort(
+            key=lambda entry: _rerank_key(request.query, entry[0], entry[1]),
+            reverse=True,
+        )
+        items: list[SearchHit] = [
+            SearchHit(
+                memory_id=record.memory_id,
+                user_id=record.user_id,
+                status=record.status,
+                content_text=record.content_text,
+                score=score,
+                attributes=dict(record.attributes),
             )
-            if len(items) >= request.top_k:
-                break
+            for record, score in ranked_records[: request.top_k]
+        ]
 
         meta = raw.get("meta", {})
         if not isinstance(meta, Mapping):
@@ -135,6 +141,14 @@ def _config_value(config: Any, name: str, default: Any) -> Any:
     return getattr(config, name, default)
 
 
+_TECHNICAL_TOKEN_PATTERN = re.compile(
+    r"(?<![0-9A-Za-z_])"
+    r"(?:--?[0-9A-Za-z]+(?:\s*[_+./:-]\s*[0-9A-Za-z]+)*"
+    r"|[0-9A-Za-z]+(?:\s*[_+./:-]\s*[0-9A-Za-z]+)+)"
+    r"(?![0-9A-Za-z_])"
+)
+
+
 def _matches_filters(
     record: MemoryRecord,
     filters: Mapping[str, Any],
@@ -155,3 +169,46 @@ def _matches_filters(
         if actual != expected:
             return False
     return True
+
+
+def _technical_tokens(text: str) -> set[str]:
+    tokens: set[str] = set()
+    for token in _TECHNICAL_TOKEN_PATTERN.findall(text):
+        normalized = re.sub(r"\s+", "", token).casefold()
+        if any(character.isalnum() for character in normalized):
+            tokens.add(normalized)
+    return tokens
+
+
+def _searchable_text(record: MemoryRecord) -> str:
+    scalar_attributes = " ".join(
+        str(value)
+        for value in record.attributes.values()
+        if isinstance(value, (str, int, float, bool))
+    )
+    return re.sub(
+        r"\s+",
+        "",
+        " ".join(
+            [
+                record.content_text,
+                str(record.content),
+                scalar_attributes,
+            ]
+        ).casefold(),
+    )
+
+
+def _rerank_key(
+    query: str,
+    record: MemoryRecord,
+    base_score: float,
+) -> tuple[int, int, float]:
+    query_tokens = _technical_tokens(query)
+    if not query_tokens:
+        return (0, 0, base_score)
+
+    searchable_text = _searchable_text(record)
+    matched_tokens = sum(token in searchable_text for token in query_tokens)
+    full_match = int(matched_tokens == len(query_tokens))
+    return (full_match, matched_tokens, base_score)
