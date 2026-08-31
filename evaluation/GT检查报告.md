@@ -1,8 +1,8 @@
 # Ground Truth 检查报告
 
-**日期**：2026-08-29  
+**日期**：2026-08-31  
 **依据**：`4号下周安排建议.docx` 第三项 + `dataset/README.md`  
-**规模**：{'preference': 500, 'corpus': 500, 'retrieval': 500, 'conflict': 500, 'forget': 500, 'security': 500}  
+**规模**：{'preference': 820, 'corpus': 820, 'retrieval': 820, 'conflict': 820, 'forget': 820, 'security': 820}  
 **结果**：error=0，warn=0，info=2
 
 ## 结论
@@ -27,8 +27,8 @@
 
 ## 统计信息
 
-- **多gold**：统计：multi_gold=52，empty_gold=39，total=500
-- **冲突方向**：六类 relation 均有覆盖：{'replace': 151, 'contradict': 97, 'duplicate': 74, 'support': 53, 'extend': 54, 'unrelated': 71}
+- **多gold**：统计：multi_gold=79，empty_gold=66，total=820
+- **冲突方向**：六类 relation 均有覆盖：{'replace': 247, 'contradict': 155, 'duplicate': 120, 'support': 89, 'extend': 90, 'unrelated': 119}
 
 ## 下一步
 

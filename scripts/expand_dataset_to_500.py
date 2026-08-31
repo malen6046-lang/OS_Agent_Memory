@@ -1,19 +1,22 @@
 # -*- coding: utf-8 -*-
-"""Expand each evaluation task to ~500 samples (dev only; validation/final_test frozen).
+"""Expand each evaluation task to a target size (dev only; validation/final_test frozen).
 
 Idempotent: skips case_ids / memory_ids that already exist.
 Usage:
   python scripts/expand_dataset_to_500.py
+  python scripts/expand_dataset_to_500.py --target 820
 """
 from __future__ import annotations
 
+import argparse
 import json
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DS = ROOT / "evaluation" / "dataset"
-TARGET = 500
+TARGET = 820
+SCALE_TAG = "v0.5_scale"
 
 USERS = [f"usr_kylin_{i:03d}" for i in range(1, 6)]
 SHARED = "usr_corpus_shared"
@@ -30,27 +33,27 @@ PROV = {
     "preference": {
         "inspired_by": "LaMP user-history-to-preference format",
         "license_note": "仅借鉴任务结构；样本为原创麒麟OS场景",
-        "adaptation": "V0.4 scale expand; fields align V1.2.1/V1.2.2",
+        "adaptation": "V0.5 scale expand; fields align V1.2.1/V1.2.2",
     },
     "retrieval": {
         "inspired_by": "BEIR corpus-query-qrels format",
         "license_note": "仅借鉴评测思想；知识为原创",
-        "adaptation": "V0.4 scale expand",
+        "adaptation": "V0.5 scale expand",
     },
     "conflict": {
         "inspired_by": "SNLI/MNLI relation labels mapped to OS conflict",
         "license_note": "样本原创",
-        "adaptation": "V0.4 scale expand; ConflictDecision enums",
+        "adaptation": "V0.5 scale expand; ConflictDecision enums",
     },
     "forget": {
         "inspired_by": "TOFU forget-request and residual evaluation",
         "license_note": "样本原创",
-        "adaptation": "V0.4 scale expand; semantic fixtures",
+        "adaptation": "V0.5 scale expand; semantic fixtures",
     },
     "security": {
         "inspired_by": "TOFU/unlearning + safety filter practice",
         "license_note": "假数据；样本原创",
-        "adaptation": "V0.4 scale expand",
+        "adaptation": "V0.5 scale expand",
     },
 }
 
@@ -197,9 +200,9 @@ def make_pref_row(n: int, key: str, val: str, cat: str, text: str, *, ephemeral:
             "primary_metric": "preference_exact_match",
             "also_report": ["macro_f1", "ephemeral_false_positive_rate"],
         },
-        "tags": ["银河麒麟V11", "中文", "v0.4_scale", cat if not ephemeral else "ephemeral"],
+        "tags": ["银河麒麟V11", "中文", SCALE_TAG, cat if not ephemeral else "ephemeral"],
         "provenance": PROV["preference"],
-        "quality": {"generation": "v0.4_scale_expand", "human_reviewed": False},
+        "quality": {"generation": "v0.5_scale_expand", "human_reviewed": False},
     }
     if ephemeral and eph:
         row["expected"]["ephemeral_text"] = eph
@@ -279,7 +282,7 @@ def make_corpus(n: int, title: str, subtype: str, body: str, kws: list[str]) -> 
         "scene_tags": ["galaxy_kylin_v11"],
         "source_refs": [f"evt_kb_{n:04d}"],
         "supersedes": [],
-        "attributes": {"domain": "kylin_desktop", "batch": "v0.4_scale"},
+        "attributes": {"domain": "kylin_desktop", "batch": SCALE_TAG},
     }
 
 
@@ -394,9 +397,9 @@ def make_conflict(n: int, pat: tuple) -> dict:
             "primary_metric": "conflict_accuracy",
             "also_report": ["confusion_matrix", "manual_review_rate", "auto_apply_rate"],
         },
-        "tags": ["银河麒麟V11", "冲突", rel, "v0.4_scale"],
+        "tags": ["银河麒麟V11", "冲突", rel, SCALE_TAG],
         "provenance": PROV["conflict"],
-        "quality": {"generation": "v0.4_scale_expand", "human_reviewed": False},
+        "quality": {"generation": "v0.5_scale_expand", "human_reviewed": False},
     }
 
 
@@ -553,9 +556,9 @@ def make_forget(n: int, topic: tuple) -> dict:
             "primary_metric": "forget_precision_recall",
             "also_report": ["false_delete_rate", "residual_check"],
         },
-        "tags": ["银河麒麟V11", "forget", "preview_execute", "v0.4_scale"],
+        "tags": ["银河麒麟V11", "forget", "preview_execute", SCALE_TAG],
         "provenance": PROV["forget"],
-        "quality": {"generation": "v0.4_scale_expand", "human_reviewed": False, "fixture_semantics": "semantic_v1"},
+        "quality": {"generation": "v0.5_scale_expand", "human_reviewed": False, "fixture_semantics": "semantic_v1"},
     }
 
 
@@ -623,9 +626,9 @@ def make_security(n: int, blocked: bool) -> dict:
         "user_id": uid,
         "input_text": text,
         "expected": exp,
-        "tags": ["security", "kylin", "v0.4_scale"],
+        "tags": ["security", "kylin", SCALE_TAG],
         "provenance": PROV["security"],
-        "quality": {"generation": "v0.4_scale_expand", "human_reviewed": False},
+        "quality": {"generation": "v0.5_scale_expand", "human_reviewed": False},
     }
 
 
@@ -697,17 +700,17 @@ def expand_retrieval(existing: set[str], corpus_rows: list[dict]) -> list[dict]:
         if n % 12 == 0:
             gold: list[str] = []
             q = f"如何配置不存在的设备型号 XYZ-{n}？"
-            tags = ["银河麒麟V11", "retrieval", "v0.4_scale", "no_answer"]
+            tags = ["银河麒麟V11", "retrieval", SCALE_TAG, "no_answer"]
         elif n % 10 == 0 and len(active) >= 2:
             c2 = active[(n + 7) % len(active)]
             gold = list(dict.fromkeys([mid, c2["memory_id"]]))
             q = f"怎样{title}并了解相关设置？"
-            tags = ["银河麒麟V11", "retrieval", "v0.4_scale", "multi_gold"]
+            tags = ["银河麒麟V11", "retrieval", SCALE_TAG, "multi_gold"]
         else:
             gold = [mid]
             tmpl = QUERY_TEMPLATES[n % len(QUERY_TEMPLATES)]
             q = tmpl.format(title=title, kw=kws[0] if kws else title)
-            tags = ["银河麒麟V11", "retrieval", "v0.4_scale"]
+            tags = ["银河麒麟V11", "retrieval", SCALE_TAG]
         out.append(
             {
                 "schema_version": "0.1.0",
@@ -726,7 +729,7 @@ def expand_retrieval(existing: set[str], corpus_rows: list[dict]) -> list[dict]:
                 },
                 "tags": tags,
                 "provenance": PROV["retrieval"],
-                "quality": {"generation": "v0.4_scale_expand", "human_reviewed": False},
+                "quality": {"generation": "v0.5_scale_expand", "human_reviewed": False},
             }
         )
         existing.add(cid)
@@ -788,6 +791,15 @@ def expand_security(existing: set[str]) -> list[dict]:
 
 
 def main() -> None:
+    global TARGET, SCALE_TAG
+    parser = argparse.ArgumentParser(description="Expand dataset to target size (dev only)")
+    parser.add_argument("--target", type=int, default=TARGET, help="target rows per task file")
+    parser.add_argument("--tag", type=str, default=SCALE_TAG, help="quality/batch tag")
+    args = parser.parse_args()
+    TARGET = args.target
+    SCALE_TAG = args.tag
+    print(f"TARGET={TARGET} SCALE_TAG={SCALE_TAG}")
+
     pref_ids = {r["case_id"] for r in load_jsonl(DS / "preference.jsonl")}
     ret_ids = {r["case_id"] for r in load_jsonl(DS / "retrieval_queries.jsonl")}
     conf_ids = {r["case_id"] for r in load_jsonl(DS / "conflict.jsonl")}
