@@ -1,0 +1,13 @@
+{
+  "release": "V0.6-finalize",
+  "stats": {
+    "keep_both": 16,
+    "keep_first_rewrite": 0,
+    "query_rewritten": 173,
+    "frozen_skipped": 19,
+    "no_answer": 65
+  },
+  "dev_unique_queries": 799,
+  "dev_multi_gold": 16,
+  "review_rows": 16
+}

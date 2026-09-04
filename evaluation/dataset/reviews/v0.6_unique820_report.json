@@ -1,0 +1,10 @@
+{
+  "added_corpus": 735,
+  "corpus_size": 820,
+  "query_size": 820,
+  "dup_titles": [],
+  "dev": 801,
+  "no_answer": 64,
+  "multi": 28,
+  "entry_markers": 0
+}

@@ -1,14 +1,17 @@
-# Dataset V0.5 说明（字段 · 标注 · 判定规则）
+# Dataset V0.6 说明（字段 · 标注 · 判定规则）
 
 **项目**：XA-202612 OS Agent 记忆优化及高效应用研究  
 **平台**：银河麒麟桌面 V11（x86_64）  
 **契约**：模块接口规划 V1.2.1 Schema + V1.2.2 冻结规范  
 **格式标准**：UTF-8 **JSONL**（一行一条 JSON 对象）  
 **运行时**：CPython 3.12.x  
-**版本**：0.5.0（`dataset_release=V0.5-dev-scale-820`）  
-**日期**：2026-08-31  
+**版本**：0.6.0（`dataset_release=V0.6-retrieval-dedupe`）  
+**日期**：2026-09-04  
 
-> V0.5 将各任务扩至约 **820** 条（新增均在 **dev**）；**validation / final_test 仍冻结**。扩样脚本：`scripts/expand_dataset_to_500.py --target 820`。
+> **V0.6.1（检索扩样）**：在去重整改基础上，将 `knowledge_corpus.jsonl` 补回 **820** 条——全部为**互不重复主题**（非同主题复制），正文无「条目 N」；Dev 检索问法保持 820，假多意图已清除。脚本：`scripts/dataset/expand_unique_to_820.py`。  
+> **V0.6（检索整改）**：主题去重、清除「条目 N」、Dev gold remap；新增 `canonical_topic_id` / `gold_topic_ids` / `is_no_answer`。**validation / final_test 仍冻结**。  
+> 脚本与复现：`scripts/dataset/README.md`。V0.5 备份：`archive/v0.5_pre_dedupe/`。  
+> 其它任务（preference/conflict/forget/security）仍为约 820 条。
 
 ---
 
@@ -17,17 +20,18 @@
 | 文件 | 任务 | 条数 | 主指标 |
 |------|------|------|--------|
 | `preference.jsonl` | 偏好提取 | 820 | exact-match、micro/macro F1、临时指令误记率 |
-| `knowledge_corpus.jsonl` | 知识语料（MemoryRecord） | 820 | 被检索语料 |
-| `retrieval_queries.jsonl` | 知识检索 | 820 | Recall@K、MRR、延迟 |
+| `knowledge_corpus.jsonl` | 知识语料（MemoryRecord） | **820**（主题唯一） | 被检索语料；禁止同主题复制 |
+| `retrieval_queries.jsonl` | 知识检索 | 820 | Recall@K、MRR、延迟；多种 query → 同一 gold |
 | `conflict.jsonl` | 知识/偏好冲突 | 820 | joint_accuracy（relation+strategy） |
 | `forget.jsonl` | 精准遗忘 | 820 | preview P/R、execute/残留 |
 | `security.jsonl` | 敏感过滤 | 820 | block + entity_type |
 
-**任务样本总计**：4100 条；含语料 **4920** 条。新增规模样本均落在 `dev`（validation/final_test 数量不变）。
+**任务样本总计**：非语料任务仍约 4100 条；检索语料已去重为 canonical 集。validation/final_test 数量不变。
 
 端到端场景见 [`../scenarios/`](../scenarios/)（开发助手 / 办公助手 / 系统维护 / 知识问答 / 遗忘操作）。
 
-P3 困难集标签含 `hard` / `p3` / `multi_gold`（≥10 条）/ `no_answer` / `cross_user` 等；语料含 inactive/tombstoned 与跨用户私有 `mem_priv_*`。
+P3 困难集标签含 `hard` / `p3` / `multi_gold` / `no_answer` / `cross_user` 等；语料含 inactive/tombstoned 与跨用户私有 `mem_priv_*`。  
+multi-gold 待审清单：[`reviews/multi_gold_review.csv`](./reviews/multi_gold_review.csv)。
 
 联调注入：[`../联调注入说明.md`](../联调注入说明.md)。第二人抽查：[`../第二人抽查清单.md`](../第二人抽查清单.md)。
 
@@ -98,8 +102,9 @@ P3 困难集标签含 `hard` / `p3` / `multi_gold`（≥10 条）/ `no_answer` /
 | `memory_id` | 稳定 ID，检索 gold 引用它 |
 | `memory_kind` | 语料主用 `semantic` |
 | `subtype` | ∈{workflow,fact,template,case,...} |
-| `content_text` | **非空**；与 `content` 语义一致 |
+| `content_text` | **非空**；与 `content` 语义一致；**禁止**写入「条目 N」等生成序号 |
 | `content` | 建议含 title/body/keywords/knowledge_type |
+| `canonical_topic_id` | V0.6+ 规范主题 ID（亦写入 `attributes.canonical_topic_id`） |
 | `status` | 默认可检索为 `active` |
 | `user_id` | 用户隔离；共享语料可用约定共享用户 |
 
@@ -110,9 +115,11 @@ P3 困难集标签含 `hard` / `p3` / `multi_gold`（≥10 条）/ `no_answer` /
 | `query` | 中文自然语言问题 |
 | `top_k` | 如 [1,3,5,10] |
 | `expected.gold_memory_ids` | **必须**存在于 corpus；**禁止**用「含关键词」代替 |
+| `expected.gold_topic_ids` | V0.6+ 辅助诊断；正式主指标仍按 `memory_id` |
+| `expected.is_no_answer` | 无答案样本为 `true`（此时 `gold_memory_ids=[]`） |
 | `evaluation.match` | 固定 `memory_id` |
 
-**判定**：`Recall@K = |TopK ∩ gold| / |gold|`（不是 Hit@K）。附报 Hit@K、MRR。检索必须带 `user_id` 过滤意识。
+**判定**：`Recall@K = |TopK ∩ gold| / |gold|`（不是 Hit@K），**仅统计 answerable**（`gold_memory_ids` 非空）。无答案样本改报 `no_answer_accuracy`（评测侧分流，勿改 `recall_at_k` 数学定义）。附报 Hit@K、MRR、可选 Canonical Topic Recall。检索必须带 `user_id` 过滤意识。
 
 ### 3.4 conflict.jsonl
 
